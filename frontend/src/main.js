@@ -251,7 +251,7 @@ async function renderMain() {
   $('#repo-search').oninput = filterRepos;
   $('#clone-btn').onclick = () => showCloneDialog();
   $('#new-repo-btn').onclick = showCreateDialog;
-  $('#update-btn').onclick = showUpdateModal;
+  $('#update-btn').onclick = (e) => { e.stopPropagation(); showUpdateModal(); };
 
   const cached = await GetCachedRepos();
   if (cached && cached.length) renderRepoList(cached, true);
@@ -293,13 +293,14 @@ async function checkForUpdates() {
 function showUpdateModal() {
   if (!pendingUpdate) return;
   const info = pendingUpdate;
+  const notes = (info.release_notes || 'No release notes').replace(/\n/g, '<br>');
   openModal(`
     <div class="modal-header">Update available</div>
     <div class="modal-body" style="text-align:center;padding:20px">
       <img src="${githubLogo}" alt="GitDesktop" style="width:48px;height:48px;margin-bottom:10px;opacity:0.9">
       <h2 style="margin-bottom:4px">v${info.latest_version}</h2>
       <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Current version: v${info.current_version}</p>
-      <div style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--muted);max-height:180px;overflow-y:auto">${escHtml(info.release_notes || 'No release notes')}</div>
+      <div style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--muted);max-height:180px;overflow-y:auto;line-height:1.7">${notes}</div>
     </div>
     <div class="modal-footer">
       <button class="btn" id="update-cancel-btn">Cancel</button>
