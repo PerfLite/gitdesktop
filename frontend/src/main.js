@@ -166,10 +166,10 @@ async function renderMain() {
       <div class="brand" id="brand-link">
         <img class="hub" src="${githubLogo}" alt="GitHub">
         <span>GitHub</span>
+        <button class="icon-btn" id="update-btn" title="Check for updates" style="display:none;margin-left:4px">${icon('download')}</button>
       </div>
       <div class="actions">
         <span style="color:var(--accent);font-weight:600;font-size:12px;margin-right:6px">@${state.user}</span>
-        <button class="icon-btn" id="update-btn" title="Check for updates" style="display:none">${icon('download')}</button>
         <button class="icon-btn" id="about-btn" title="About">${icon('info')}</button>
         <button class="icon-btn" id="refresh-btn" title="Refresh">${icon('refresh')}</button>
         <button class="icon-btn" id="logout-btn" title="Sign out">${icon('logout')}</button>
@@ -244,16 +244,16 @@ function showUpdateModal() {
   if (!pendingUpdate) return;
   const info = pendingUpdate;
   openModal(`
-    <div class="modal-header">Update available</div>
-    <div class="modal-body" style="text-align:center;padding:24px">
-      <div style="font-size:36px;margin-bottom:12px;color:var(--green)">${icon('download')}</div>
+    <div class="modal-header">Update available / Доступно обновление</div>
+    <div class="modal-body" style="text-align:center;padding:20px">
+      <img src="${githubLogo}" alt="GitDesktop" style="width:48px;height:48px;margin-bottom:10px;opacity:0.9">
       <h2 style="margin-bottom:4px">v${info.latest_version}</h2>
-      <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Current version: v${info.current_version}</p>
-      <div style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px;color:var(--muted);max-height:200px;overflow-y:auto">${escHtml(info.release_notes || 'No release notes')}</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Current: v${info.current_version} / Текущая: v${info.current_version}</p>
+      <div style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--muted);max-height:180px;overflow-y:auto">${escHtml(info.release_notes || 'No release notes')}</div>
     </div>
     <div class="modal-footer">
-      <button class="btn" id="update-cancel-btn">Cancel</button>
-      <button class="btn primary" id="update-install-btn">Install update</button>
+      <button class="btn" id="update-cancel-btn">Cancel / Отмена</button>
+      <button class="btn primary" id="update-install-btn">Install / Установить</button>
     </div>`);
   $('#update-cancel-btn').onclick = closeModal;
   $('#update-install-btn').onclick = () => { closeModal(); doInstallUpdate(); };
