@@ -1,0 +1,29 @@
+name: gitdesktop
+arch: amd64
+platform: linux
+version: "v0.1.0"
+description: Git repository manager for Linux
+maintainer: "bashakul"
+license: GPL-3.0
+
+depends:
+  - libwebkit2gtk-4.1-0
+  - git
+
+scripts:
+  postinstall: packaging/postinst.sh
+
+contents:
+  - src: build/bin/gitdesktop
+    dst: /usr/bin/gitdesktop
+    type: file
+    file_info:
+      mode: 0755
+
+  - src: packaging/gitdesktop.desktop
+    dst: /usr/share/applications/gitdesktop.desktop
+    type: file
+
+  - src: packaging/icons/gitdesktop.png
+    dst: /usr/share/icons/hicolor/512x512/apps/gitdesktop.png
+    type: file

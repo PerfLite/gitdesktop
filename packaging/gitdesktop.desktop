@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=GitDesktop
+Comment=Git repository manager for Linux
+Exec=gitdesktop
+Icon=gitdesktop
+Type=Application
+Categories=Development;Utility;
+Terminal=false
+StartupWMClass=gitdesktop
