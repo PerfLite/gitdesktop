@@ -1,4 +1,4 @@
-import { GetSavedToken, Login, Logout, GetCachedRepos, GetRepos, OpenLocalRepo, GetSavedRepoPath, CloneRepo, GetLastClonePath, GetChanges, GetDiff, Commit, Fetch, GetBranchInfo, GetBranches, CheckoutBranch, GetCommitDiff, GetHistory, OpenInBrowser, OpenInFiles, GetLocalPath, GetConfig, CreateRepo, DeleteRepo, GetGitIgnoreTemplates, StartWatcher, StopWatcher, GetVersion, CheckForUpdates, DownloadUpdate } from '../wailsjs/go/main/App';
+import { GetSavedToken, Login, Logout, GetCachedRepos, GetRepos, OpenLocalRepo, GetSavedRepoPath, CloneRepo, GetLastClonePath, GetChanges, GetDiff, Commit, Fetch, GetBranchInfo, GetBranches, CheckoutBranch, GetCommitDiff, GetHistory, OpenInBrowser, OpenInFiles, GetLocalPath, GetConfig, CreateRepo, DeleteRepo, GetGitIgnoreTemplates, StartWatcher, StopWatcher, GetVersion, CheckForUpdates, DownloadUpdate, OAuthLogin, OpenURL } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import githubLogo from './assets/GitHub-logo.gif';
 import githubIcon from './assets/github-64.png';
@@ -114,25 +114,75 @@ function escHtml(s) {
 function renderLogin() {
   $('#screen-login').innerHTML = `
     <div class="login-card">
-      <img class="hub-icon" src="${githubLogo}" alt="GitHub">
-      <h1>GitHub</h1>
-      <p>Sign in with your Personal Access Token</p>
+      <img class="hub-icon" src="${githubLogo}" alt="GitDesktop" style="width:48px;height:48px">
+      <h1>GitDesktop</h1>
+
+      <button class="btn primary" id="oauth-btn" style="width:100%;justify-content:center;padding:10px 16px;margin-top:10px">
+        ${icon('globe')} Sign in with GitHub
+      </button>
+
+      <div style="width:100%;text-align:center;color:var(--muted);font-size:11px;margin:12px 0 8px;position:relative">
+        <span style="background:var(--sidebar);padding:0 8px;position:relative;z-index:1">or use a token</span>
+        <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:var(--border)"></div>
+      </div>
+
       <div style="width:100%">
         <input id="token-input" class="input" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        <div style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.6">
+          <div style="margin-bottom:2px">Required token scopes:</div>
+          <div style="display:flex;align-items:center;gap:4px"><span style="color:var(--green)">&#x2713;</span> <code style="background:var(--bg);padding:1px 5px;border-radius:3px;font-size:10px">repo</code> Full control of repositories</div>
+          <div style="display:flex;align-items:center;gap:4px"><span style="color:var(--green)">&#x2713;</span> <code style="background:var(--bg);padding:1px 5px;border-radius:3px;font-size:10px">delete_repo</code> Delete repositories</div>
+        </div>
         <div id="login-error" class="error-text"></div>
       </div>
+
       <div class="login-actions">
-        <button class="btn" id="get-token-btn">
-          ${icon('globe')} Get token
-        </button>
-        <button class="btn primary" id="login-btn">
-          Sign in
-        </button>
+        <button class="btn" id="get-token-btn">Get token</button>
+        <button class="btn" id="login-btn">Sign in with token</button>
       </div>
     </div>`;
+  $('#oauth-btn').onclick = doOAuthLogin;
   $('#get-token-btn').onclick = () => OpenInBrowser('https://github.com/settings/tokens');
   $('#login-btn').onclick = doLogin;
   $('#token-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+}
+
+async function doOAuthLogin() {
+  const btn = $('#oauth-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Connecting...'; }
+  try {
+    const res = await OAuthLogin();
+    if (res.ok) {
+      showDeviceCodeScreen(res.user_code, res.verification_uri);
+    } else {
+      const errEl = $('#login-error');
+      if (errEl) errEl.textContent = res.error;
+      if (btn) { btn.disabled = false; btn.innerHTML = `${icon('globe')} Sign in with GitHub`; }
+    }
+  } catch(e) {
+    const errEl = $('#login-error');
+    if (errEl) errEl.textContent = String(e);
+    if (btn) { btn.disabled = false; btn.innerHTML = `${icon('globe')} Sign in with GitHub`; }
+  }
+}
+
+function showDeviceCodeScreen(code, uri) {
+  $('#screen-login').innerHTML = `
+    <div class="login-card">
+      <img class="hub-icon" src="${githubLogo}" alt="GitDesktop" style="width:48px;height:48px">
+      <h2 style="font-size:16px;margin-bottom:4px">Authorize GitDesktop</h2>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Enter this code on GitHub:</p>
+      <div style="background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:16px 24px;font-size:28px;font-weight:700;letter-spacing:4px;color:var(--accent);font-family:monospace;text-align:center;margin-bottom:16px">${code}</div>
+      <button class="btn primary" id="open-github-btn" style="width:100%;justify-content:center;padding:10px 16px">
+        Open ${uri}
+      </button>
+      <div style="margin-top:16px;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px">
+        <div style="width:14px;height:14px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite"></div>
+        Waiting for authorization...
+      </div>
+      <div id="login-error" class="error-text" style="margin-top:8px"></div>
+    </div>`;
+  $('#open-github-btn').onclick = () => OpenURL(uri);
 }
 
 async function doLogin() {
@@ -994,6 +1044,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     const progress = $('#update-progress');
     if (btn) { btn.disabled = false; btn.textContent = 'Install'; }
     if (progress) progress.textContent = 'Error: ' + e;
+  });
+
+  EventsOn('onOAuthSuccess', (res) => {
+    if (res && res.ok) {
+      state.user = res.user;
+      state.avatarUrl = res.avatar_url || '';
+      renderMain();
+    } else {
+      const errEl = $('#login-error');
+      if (errEl) errEl.textContent = res?.error || 'OAuth failed';
+      renderLogin();
+    }
+  });
+  EventsOn('onOAuthError', (e) => {
+    toast(`OAuth error: ${e}`, 'error');
+    const errEl = $('#login-error');
+    if (errEl) errEl.textContent = e;
+    renderLogin();
   });
 
   // Init

@@ -106,6 +106,10 @@ export function Logout() {
   return window['go']['main']['App']['Logout']();
 }
 
+export function OAuthLogin() {
+  return window['go']['main']['App']['OAuthLogin']();
+}
+
 export function OpenInBrowser(arg1) {
   return window['go']['main']['App']['OpenInBrowser'](arg1);
 }
@@ -116,6 +120,10 @@ export function OpenInFiles(arg1) {
 
 export function OpenLocalRepo(arg1) {
   return window['go']['main']['App']['OpenLocalRepo'](arg1);
+}
+
+export function OpenURL(arg1) {
+  return window['go']['main']['App']['OpenURL'](arg1);
 }
 
 export function Push() {

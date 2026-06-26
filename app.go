@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -759,4 +760,105 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 	}()
 
 	return map[string]interface{}{"ok": true, "started": true}
+}
+
+// ── OAUTH DEVICE FLOW ─────────────────────────────────────────────────────
+
+func (a *App) OAuthLogin() map[string]interface{} {
+	if oauthClientID == "" {
+		return map[string]interface{}{"ok": false, "error": "OAuth not configured"}
+	}
+
+	data := url.Values{}
+	data.Set("client_id", oauthClientID)
+	data.Set("scope", "repo delete_repo")
+
+	resp, err := http.PostForm("https://github.com/login/device/code", data)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		DeviceCode      string `json:"device_code"`
+		UserCode        string `json:"user_code"`
+		VerificationURI string `json:"verification_uri"`
+		ExpiresIn       int    `json:"expires_in"`
+		Interval        int    `json:"interval"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return map[string]interface{}{"ok": false, "error": "Failed to parse device code response"}
+	}
+
+	go a.pollDeviceCode(result.DeviceCode, result.Interval)
+
+	return map[string]interface{}{
+		"ok":               true,
+		"user_code":        result.UserCode,
+		"verification_uri": result.VerificationURI,
+	}
+}
+
+func (a *App) pollDeviceCode(deviceCode string, interval int) {
+	if interval < 5 {
+		interval = 5
+	}
+
+	for {
+		time.Sleep(time.Duration(interval) * time.Second)
+
+		data := url.Values{}
+		data.Set("client_id", oauthClientID)
+		data.Set("device_code", deviceCode)
+		data.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+
+		req, err := http.NewRequest("POST", "https://github.com/login/oauth/access_token", strings.NewReader(data.Encode()))
+		if err != nil {
+			a.emitEvent("onOAuthError", err.Error())
+			return
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			a.emitEvent("onOAuthError", err.Error())
+			return
+		}
+
+		var tokenResp struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+			AccessToken      string `json:"access_token"`
+		}
+		json.NewDecoder(resp.Body).Decode(&tokenResp)
+		resp.Body.Close()
+
+		switch tokenResp.Error {
+		case "authorization_pending":
+			continue
+		case "slow_down":
+			interval += 5
+			continue
+		case "expired_token":
+			a.emitEvent("onOAuthError", "Code expired. Please try again.")
+			return
+		case "access_denied":
+			a.emitEvent("onOAuthError", "Authorization denied.")
+			return
+		}
+
+		if tokenResp.AccessToken != "" {
+			res := a.Login(tokenResp.AccessToken)
+			a.emitEvent("onOAuthSuccess", res)
+			return
+		}
+
+		a.emitEvent("onOAuthError", "Unexpected response from GitHub")
+		return
+	}
+}
+
+func (a *App) OpenURL(url string) {
+	go exec.Command("xdg-open", url).Start()
 }

@@ -54,11 +54,15 @@ export function Login(arg1:string):Promise<main.LoginResult>;
 
 export function Logout():Promise<Record<string, any>>;
 
+export function OAuthLogin():Promise<Record<string, any>>;
+
 export function OpenInBrowser(arg1:string):Promise<void>;
 
 export function OpenInFiles(arg1:string):Promise<Record<string, any>>;
 
 export function OpenLocalRepo(arg1:string):Promise<main.OpenRepoResult>;
+
+export function OpenURL(arg1:string):Promise<void>;
 
 export function Push():Promise<main.PushResult>;
 

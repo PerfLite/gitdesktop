@@ -12,6 +12,7 @@ import (
 var assets embed.FS
 
 var version = "dev"
+var oauthClientID = "Iv23lijxKXrbkQ1Io2a5"
 
 func main() {
 	app := NewApp()
