@@ -627,7 +627,7 @@ func (a *App) CheckForUpdates() UpdateInfo {
 		CurrentVersion: version,
 	}
 
-	release, err := a.client.GetLatestRelease("bashakul", "gitdesktop")
+	release, err := a.client.GetLatestRelease("PerfLite", "gitdesktop")
 	if err != nil {
 		info.Error = err.Error()
 		return info
@@ -646,7 +646,7 @@ func (a *App) CheckForUpdates() UpdateInfo {
 }
 
 func (a *App) DownloadUpdate() map[string]interface{} {
-	release, err := a.client.GetLatestRelease("bashakul", "gitdesktop")
+	release, err := a.client.GetLatestRelease("PerfLite", "gitdesktop")
 	if err != nil {
 		return map[string]interface{}{"ok": false, "error": err.Error()}
 	}
