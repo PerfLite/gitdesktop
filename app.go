@@ -690,7 +690,14 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 			"message":  "Downloading update...",
 		})
 
-		resp, err := http.Get(downloadURL)
+		req, err := http.NewRequest("GET", downloadURL, nil)
+		if err != nil {
+			a.emitEvent("onUpdateError", err.Error())
+			return
+		}
+		req.Header.Set("User-Agent", "GitDesktop/0.1.0")
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			a.emitEvent("onUpdateError", err.Error())
 			return
