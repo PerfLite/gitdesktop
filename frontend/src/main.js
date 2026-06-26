@@ -172,7 +172,8 @@ function showDeviceCodeScreen(code, uri) {
       <img class="hub-icon" src="${githubLogo}" alt="GitDesktop" style="width:48px;height:48px">
       <h2 style="font-size:16px;margin-bottom:4px">Authorize GitDesktop</h2>
       <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Enter this code on GitHub:</p>
-      <div style="background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:16px 24px;font-size:28px;font-weight:700;letter-spacing:4px;color:var(--accent);font-family:monospace;text-align:center;margin-bottom:16px">${code}</div>
+      <div id="device-code-box" style="background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:16px 24px;font-size:28px;font-weight:700;letter-spacing:4px;color:var(--accent);font-family:monospace;text-align:center;margin-bottom:12px;cursor:pointer" title="Click to copy">${code}</div>
+      <button class="btn" id="copy-code-btn" style="width:100%;justify-content:center;padding:6px 16px;margin-bottom:12px;font-size:12px">${icon('copy')} Copy code</button>
       <button class="btn primary" id="open-github-btn" style="width:100%;justify-content:center;padding:10px 16px">
         Open ${uri}
       </button>
@@ -182,6 +183,14 @@ function showDeviceCodeScreen(code, uri) {
       </div>
       <div id="login-error" class="error-text" style="margin-top:8px"></div>
     </div>`;
+  const copyCode = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = $('#copy-code-btn');
+      if (btn) { btn.innerHTML = `${icon('check')} Copied!`; setTimeout(() => { btn.innerHTML = `${icon('copy')} Copy code`; }, 1500); }
+    });
+  };
+  $('#copy-code-btn').onclick = copyCode;
+  $('#device-code-box').onclick = copyCode;
   $('#open-github-btn').onclick = () => OpenURL(uri);
 }
 
@@ -359,6 +368,7 @@ async function doLogout() {
   await Logout();
   state.user = null;
   state.repos = [];
+  showScreen('login');
   renderLogin();
 }
 
