@@ -653,13 +653,9 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 		return map[string]interface{}{"ok": false, "error": err.Error()}
 	}
 
-	exePath, err := os.Executable()
-	if err != nil {
-		return map[string]interface{}{"ok": false, "error": err.Error()}
-	}
-
-	exeDir := filepath.Dir(exePath)
-	tmpPath := filepath.Join(exeDir, ".gitdesktop-update")
+	home, _ := os.UserHomeDir()
+	tmpPath := filepath.Join(home, ".local", "bin", ".gitdesktop-update")
+	os.MkdirAll(filepath.Dir(tmpPath), 0755)
 
 	go func() {
 		defer os.Remove(tmpPath)
@@ -738,15 +734,9 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 
 		os.Chmod(tmpPath, 0755)
 
-		bakPath := exePath + ".bak"
-		os.Remove(bakPath)
-		if err := os.Rename(exePath, bakPath); err != nil {
-			a.emitEvent("onUpdateError", "Failed to backup current binary: "+err.Error())
-			return
-		}
-		if err := os.Rename(tmpPath, exePath); err != nil {
-			os.Rename(bakPath, exePath)
-			a.emitEvent("onUpdateError", "Failed to replace binary: "+err.Error())
+		installPath := filepath.Join(home, ".local", "bin", "gitdesktop")
+		if err := os.Rename(tmpPath, installPath); err != nil {
+			a.emitEvent("onUpdateError", "Failed to install update: "+err.Error())
 			return
 		}
 
@@ -754,7 +744,7 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 
 		go func() {
 			time.Sleep(500 * time.Millisecond)
-			cmd := exec.Command(exePath)
+			cmd := exec.Command(installPath)
 			cmd.Start()
 			os.Exit(0)
 		}()
