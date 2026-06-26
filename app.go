@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -773,11 +774,21 @@ func (a *App) OAuthLogin() map[string]interface{} {
 	data.Set("client_id", oauthClientID)
 	data.Set("scope", "repo delete_repo")
 
-	resp, err := http.PostForm("https://github.com/login/device/code", data)
+	req, err := http.NewRequest("POST", "https://github.com/login/device/code", strings.NewReader(data.Encode()))
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "GitDesktop/0.1.0")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return map[string]interface{}{"ok": false, "error": err.Error()}
 	}
 	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
 
 	var result struct {
 		DeviceCode      string `json:"device_code"`
@@ -785,9 +796,14 @@ func (a *App) OAuthLogin() map[string]interface{} {
 		VerificationURI string `json:"verification_uri"`
 		ExpiresIn       int    `json:"expires_in"`
 		Interval        int    `json:"interval"`
+		Error           string `json:"error"`
+		ErrorDescription string `json:"error_description"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return map[string]interface{}{"ok": false, "error": "Failed to parse device code response"}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return map[string]interface{}{"ok": false, "error": fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body[:min(len(body), 200)]))}
+	}
+	if result.Error != "" {
+		return map[string]interface{}{"ok": false, "error": result.Error + ": " + result.ErrorDescription}
 	}
 
 	go a.pollDeviceCode(result.DeviceCode, result.Interval)
