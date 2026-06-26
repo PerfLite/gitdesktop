@@ -167,3 +167,18 @@ label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px
 .toast.success svg { color: var(--green); }
 .toast.error   svg { color: var(--red); }
 @keyframes toast-in { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+@keyframes update-pulse {
+  0%, 100% { color: var(--green); filter: drop-shadow(0 0 4px var(--green)); }
+  50% { color: var(--muted); filter: none; }
+}
+.icon-btn.update-available {
+  animation: update-pulse 1.5s ease-in-out infinite;
+  color: var(--green);
+}
+.icon-btn.update-available:hover {
+  animation: none;
+  color: var(--green);
+  background: var(--hover);
+  border-color: var(--green);
+}

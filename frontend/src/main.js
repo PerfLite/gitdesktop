@@ -170,6 +170,7 @@ async function renderMain() {
         </div>
         <div class="actions">
           <span style="color:var(--accent);font-weight:600;font-size:12px;margin-right:6px">@${state.user}</span>
+          <button class="icon-btn" id="update-btn" title="Check for updates" style="display:none">${icon('download')}</button>
           <button class="icon-btn" id="about-btn" title="About">${icon('info')}</button>
           <button class="icon-btn" id="refresh-btn" title="Refresh">${icon('refresh')}</button>
           <button class="icon-btn" id="logout-btn" title="Sign out">${icon('logout')}</button>
@@ -198,6 +199,7 @@ async function renderMain() {
   $('#repo-search').oninput = filterRepos;
   $('#clone-btn').onclick = () => showCloneDialog();
   $('#new-repo-btn').onclick = showCreateDialog;
+  $('#update-btn').onclick = showUpdateModal;
 
   const cached = await GetCachedRepos();
   if (cached && cached.length) renderRepoList(cached, true);
@@ -221,48 +223,38 @@ async function loadRepos() {
   }
 }
 
+let pendingUpdate = null;
+
 async function checkForUpdates() {
   try {
     const info = await CheckForUpdates();
     if (info.update_available) {
-      showUpdateBanner(info);
+      pendingUpdate = info;
+      const btn = $('#update-btn');
+      if (btn) { btn.style.display = ''; btn.classList.add('update-available'); }
     }
   } catch(e) {
     console.error('Update check failed:', e);
   }
 }
 
-function showUpdateBanner(info) {
-  const existing = $('#update-banner');
-  if (existing) existing.remove();
-
-  const banner = document.createElement('div');
-  banner.id = 'update-banner';
-  banner.style.cssText = 'background:linear-gradient(135deg,#1a3a1a,#0d2a0d);border:1px solid #238636;border-radius:8px;padding:12px 16px;margin:8px 12px;display:flex;flex-direction:column;gap:8px';
-  banner.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="color:#3fb950;font-size:13px;font-weight:600">Update available: v${info.latest_version}</span>
+function showUpdateModal() {
+  if (!pendingUpdate) return;
+  const info = pendingUpdate;
+  openModal(`
+    <div class="modal-header">Update available</div>
+    <div class="modal-body" style="text-align:center;padding:24px">
+      <div style="font-size:36px;margin-bottom:12px;color:var(--green)">${icon('download')}</div>
+      <h2 style="margin-bottom:4px">v${info.latest_version}</h2>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Current version: v${info.current_version}</p>
+      <div style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px;color:var(--muted);max-height:200px;overflow-y:auto">${escHtml(info.release_notes || 'No release notes')}</div>
     </div>
-    <div style="font-size:11px;color:var(--muted);max-height:60px;overflow:hidden">${escHtml(info.release_notes || '').substring(0, 150)}${info.release_notes && info.release_notes.length > 150 ? '...' : ''}</div>
-    <div style="display:flex;gap:8px">
-      <button class="btn primary" id="update-install-btn" style="font-size:12px;padding:4px 12px">Install</button>
-      <button class="btn" id="update-dismiss-btn" style="font-size:12px;padding:4px 12px">Later</button>
-    </div>
-    <div id="update-progress" style="display:none;font-size:11px;color:var(--accent)"></div>
-  `;
-
-  const sidebar = $('.sidebar');
-  if (sidebar) {
-    const status = $('#sidebar-status');
-    if (status) {
-      status.parentNode.insertBefore(banner, status);
-    } else {
-      sidebar.appendChild(banner);
-    }
-  }
-
-  $('#update-install-btn').onclick = () => doInstallUpdate();
-  $('#update-dismiss-btn').onclick = () => banner.remove();
+    <div class="modal-footer">
+      <button class="btn" id="update-cancel-btn">Cancel</button>
+      <button class="btn primary" id="update-install-btn">Install update</button>
+    </div>`);
+  $('#update-cancel-btn').onclick = closeModal;
+  $('#update-install-btn').onclick = () => { closeModal(); doInstallUpdate(); };
 }
 
 async function doInstallUpdate() {
