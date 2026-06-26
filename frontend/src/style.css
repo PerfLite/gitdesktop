@@ -65,13 +65,14 @@ label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px
 .login-actions { display: flex; gap: 10px; width: 100%; justify-content: space-between; margin-top: 6px; }
 .error-text { color: var(--red); font-size: 12px; min-height: 16px; }
 
-#screen-main { flex-direction: row; }
+#screen-main { flex-direction: column; }
+.app-header { background: var(--header); border-bottom: 1px solid var(--border); padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.app-header .brand { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.app-header .brand .hub { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+.app-header .brand span { font-weight: 700; font-size: 15px; }
+.app-header .actions { display: flex; align-items: center; gap: 2px; }
+.app-body { display: flex; flex: 1; overflow: hidden; }
 .sidebar { width: 280px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
-.sidebar-header { padding: 10px 16px 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-.sidebar-header .brand { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.sidebar-header .brand .hub { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
-.sidebar-header .brand span { font-weight: 700; font-size: 15px; }
-.sidebar-header .actions { display: flex; align-items: center; gap: 2px; }
 .icon-btn { background: none; border: 2px solid transparent; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; transition: color .15s, border-color .15s, background .15s; }
 .icon-btn:hover { color: var(--text); background: var(--hover); border-color: #8b949e; }
 .icon-btn svg { width: 16px; height: 16px; fill: currentColor; }

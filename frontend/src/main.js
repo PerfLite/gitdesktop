@@ -162,33 +162,35 @@ async function renderMain() {
   showScreen('main');
   const s = $('#screen-main');
   s.innerHTML = `
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <div class="brand" id="brand-link">
-          <img class="hub" src="${githubLogo}" alt="GitHub">
-          <span>GitHub</span>
-        </div>
-        <div class="actions">
-          <span style="color:var(--accent);font-weight:600;font-size:12px;margin-right:6px">@${state.user}</span>
-          <button class="icon-btn" id="update-btn" title="Check for updates" style="display:none">${icon('download')}</button>
-          <button class="icon-btn" id="about-btn" title="About">${icon('info')}</button>
-          <button class="icon-btn" id="refresh-btn" title="Refresh">${icon('refresh')}</button>
-          <button class="icon-btn" id="logout-btn" title="Sign out">${icon('logout')}</button>
-        </div>
+    <div class="app-header">
+      <div class="brand" id="brand-link">
+        <img class="hub" src="${githubLogo}" alt="GitHub">
+        <span>GitHub</span>
       </div>
-      <div class="sidebar-search">
-        <input class="input" id="repo-search" placeholder="Filter repositories">
+      <div class="actions">
+        <span style="color:var(--accent);font-weight:600;font-size:12px;margin-right:6px">@${state.user}</span>
+        <button class="icon-btn" id="update-btn" title="Check for updates" style="display:none">${icon('download')}</button>
+        <button class="icon-btn" id="about-btn" title="About">${icon('info')}</button>
+        <button class="icon-btn" id="refresh-btn" title="Refresh">${icon('refresh')}</button>
+        <button class="icon-btn" id="logout-btn" title="Sign out">${icon('logout')}</button>
       </div>
-      <div class="repo-list" id="repo-list"></div>
-      <div class="sidebar-status" id="sidebar-status">Loading...</div>
     </div>
-    <div id="main-right" class="main-welcome">
-      <img src="${githubLogo}" alt="GitHub" style="width:120px;height:120px;margin-bottom:16px;opacity:0.85">
-      <h2>Select a repository</h2>
-      <p>Choose from the list on the left</p>
-      <div class="welcome-actions">
-        <button class="btn" id="clone-btn">${icon('download')} Clone repository</button>
-        <button class="btn primary" id="new-repo-btn">${icon('plus')} New repository</button>
+    <div class="app-body">
+      <div class="sidebar">
+        <div class="sidebar-search">
+          <input class="input" id="repo-search" placeholder="Filter repositories">
+        </div>
+        <div class="repo-list" id="repo-list"></div>
+        <div class="sidebar-status" id="sidebar-status">Loading...</div>
+      </div>
+      <div id="main-right" class="main-welcome">
+        <img src="${githubLogo}" alt="GitHub" style="width:120px;height:120px;margin-bottom:16px;opacity:0.85">
+        <h2>Select a repository</h2>
+        <p>Choose from the list on the left</p>
+        <div class="welcome-actions">
+          <button class="btn" id="clone-btn">${icon('download')} Clone repository</button>
+          <button class="btn primary" id="new-repo-btn">${icon('plus')} New repository</button>
+        </div>
       </div>
     </div>`;
 
