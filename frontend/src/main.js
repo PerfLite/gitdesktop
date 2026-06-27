@@ -74,7 +74,7 @@ const icons = {
   download:`<svg viewBox="0 0 16 16"><path d="M8 12a.75.75 0 0 1-.53-.22l-4.25-4.25a.75.75 0 0 1 1.06-1.06L8 10.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25A.75.75 0 0 1 8 12z"/><path d="M8 1.75a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-1.5 0v-8.5A.75.75 0 0 1 8 1.75zM1.75 13.5a.75.75 0 0 1 .75-.75h11a.75.75 0 0 1 0 1.5h-11a.75.75 0 0 1-.75-.75z"/></svg>`,
   info:    `<svg viewBox="0 0 16 16"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v12.5A1.75 1.75 0 0 1 14.25 16H1.75A1.75 1.75 0 0 1 0 14.25ZM1.75 1.5a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V1.75a.25.25 0 0 0-.25-.25ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>`,
   telegram:`<svg viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.515-3.106a.5.5 0 0 0-.384-.155l-4.047 1.35-1.497-1.238a.3.3 0 0 0-.39.14l-.668 1.435-.668-1.435a.3.3 0 0 0-.39-.14l-1.497 1.238-4.047-1.355a.5.5 0 0 0-.572.25L1.86 7.14a.5.5 0 0 0 .057.548l2.636 2.15-2.636 2.15a.5.5 0 0 0-.057.548l1.068 2.37a.5.5 0 0 0 .648.257l4.11-1.695 1.497 1.238a.3.3 0 0 0 .39-.14l.668-1.435.668 1.435a.3.3 0 0 0 .39.14l1.497-1.238 4.11 1.695a.5.5 0 0 0 .648-.257l1.068-2.37a.5.5 0 0 0-.057-.548l-2.636-2.15 2.636-2.15a.5.5 0 0 0 .057-.548L13.056 2.15a.5.5 0 0 0-.571-.256zM7.38 10.36l-1.32 4.88a.15.15 0 0 0 .23.16l1.31-.59 1.31.59a.15.15 0 0 0 .23-.16l-1.32-4.88h.74l1.53-5.36a.15.15 0 0 0-.23-.16L9.32 9.21l-1.31-.59a.15.15 0 0 0-.23.16l-1.53 5.36h.74z"/></svg>`,
-  settings:`<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8.2 8.2 0 0 1 .701.031C9.444.095 9.99.645 10.16 1.29l.288 1.107c.018.066.079.158.212.224.231.114.454.243.668.386.123.082.233.09.3.071L12.15 1.43a.75.75 0 0 1 .966.356l.698 1.206a.75.75 0 0 1-.18.94l-.876.644a.75.75 0 0 1-.149.114l-.008.005-.012.008-.022.014-.07.046-.212.12a7.7 7.7 0 0 1-.399.187c-.242.104-.498.19-.762.257a6.1 6.1 0 0 1-.582.111 4.9 4.9 0 0 1-.624.043h-.005a4.9 4.9 0 0 1-.624-.043 6.1 6.1 0 0 1-.582-.111 7.7 7.7 0 0 1-.4-.187 5.6 5.6 0 0 1-.212-.12l-.07-.046-.022-.014-.012-.008-.008-.005a.75.75 0 0 1-.149-.114l-.876-.644a.75.75 0 0 1-.18-.94l.698-1.206a.75.75 0 0 1 .966-.356l.522.292c.073.019.183.011.3-.071a4.8 4.8 0 0 1 .668-.386c.133-.066.194-.158.212-.224l.288-1.107c.17-.646.716-1.196 1.458-1.26a8.2 8.2 0 0 1 1.402 0zM8 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>`,
+  settings:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="16" cy="16" r="4" fill="black"/></mask></defs><g mask="url(#m)" fill="currentColor"><circle cx="16" cy="16" r="10"/><rect x="14" y="2" width="4" height="28" transform="rotate(0 16 16)"/><rect x="14" y="2" width="4" height="28" transform="rotate(45 16 16)"/><rect x="14" y="2" width="4" height="28" transform="rotate(90 16 16)"/><rect x="14" y="2" width="4" height="28" transform="rotate(135 16 16)"/></g></svg>`,
 };
 
 function icon(name) { return icons[name] || ''; }
@@ -441,7 +441,7 @@ function showSettings() {
     state.fontSize = val;
     $('#font-size-val').textContent = val + 'px';
     const zoom = val / 14;
-    document.documentElement.style.setProperty('--app-zoom', zoom);
+    document.getElementById('app').style.zoom = zoom;
   };
   slider.oninput = applySize;
   slider.onchange = applySize;
@@ -458,7 +458,8 @@ function loadFontSize() {
     if (saved) {
       state.fontSize = parseInt(saved) || 14;
       const zoom = state.fontSize / 14;
-      document.documentElement.style.setProperty('--app-zoom', zoom);
+      const app = document.getElementById('app');
+      if (app) app.style.zoom = zoom;
     }
   } catch(e) {}
 }
