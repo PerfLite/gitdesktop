@@ -50,6 +50,22 @@ func (a *App) startup(ctx context.Context) {
 	if a.config.Token != "" {
 		a.client.SetToken(a.config.Token)
 	}
+
+	home, _ := os.UserHomeDir()
+	updatedBin := filepath.Join(home, ".local", "bin", "gitdesktop")
+	exePath, _ := os.Executable()
+	if updatedBin != exePath {
+		if info, err := os.Stat(updatedBin); err == nil && info.Size() > 1000000 {
+			os.Chmod(updatedBin, 0755)
+			go func() {
+				time.Sleep(200 * time.Millisecond)
+				cmd := exec.Command(updatedBin)
+				cmd.Start()
+				os.Exit(0)
+			}()
+			return
+		}
+	}
 }
 
 func configPath() string {
