@@ -54,6 +54,11 @@ func (a *App) startup(ctx context.Context) {
 	home, _ := os.UserHomeDir()
 	updatedBin := filepath.Join(home, ".local", "bin", "gitdesktop")
 	exePath, _ := os.Executable()
+
+	if strings.HasPrefix(exePath, home+"/.local/bin") {
+		return
+	}
+
 	if updatedBin != exePath {
 		if info, err := os.Stat(updatedBin); err == nil && info.Size() > 1000000 {
 			os.Chmod(updatedBin, 0755)
