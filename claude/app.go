@@ -71,12 +71,17 @@ func (a *App) loadConfig() {
 
 func (a *App) saveConfig() error {
 	path := configPath()
-	os.MkdirAll(filepath.Dir(path), 0755)
+	// 0700 на папку и 0600 на файл: config.json содержит личный токен,
+	// поэтому другие пользователи системы не должны иметь к нему доступ.
+	os.MkdirAll(filepath.Dir(path), 0700)
 	data, err := json.MarshalIndent(a.config, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0600)
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────
@@ -653,41 +658,71 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 		return map[string]interface{}{"ok": false, "error": err.Error()}
 	}
 
-	home, _ := os.UserHomeDir()
-	tmpPath := filepath.Join(home, ".local", "bin", ".gitdesktop-update")
-	os.MkdirAll(filepath.Dir(tmpPath), 0755)
+	// Определяем, откуда реально запущен текущий процесс, а не считаем,
+	// что бинарник всегда стоит в ~/.local/bin (это верно только для AppImage).
+	currentExe, err := os.Executable()
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": "Could not determine current executable path: " + err.Error()}
+	}
+	currentExe, err = filepath.EvalSymlinks(currentExe)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+
+	// Если запущено из системного каталога без права записи (типичный путь
+	// для .deb-установки в /usr/bin), самообновление через перезапись файла
+	// не сработает — нужно сообщить об этом явно, а не тихо писать в другое место.
+	installDir := filepath.Dir(currentExe)
+	testFile := filepath.Join(installDir, ".gitdesktop-write-test")
+	if f, err := os.Create(testFile); err != nil {
+		return map[string]interface{}{
+			"ok":    false,
+			"error": "GitDesktop was installed via a package manager (.deb) and can't self-update. Please update via your package manager or the AppImage release.",
+		}
+	} else {
+		f.Close()
+		os.Remove(testFile)
+	}
+
+	tmpPath := filepath.Join(installDir, ".gitdesktop-update")
 
 	go func() {
 		defer os.Remove(tmpPath)
 
-		assetName := "gitdesktop"
 		var downloadURL string
 		for _, asset := range release.Assets {
-			if asset.Name == assetName || asset.Name == "gitdesktop-x86_64" {
+			name := strings.ToLower(asset.Name)
+			// Явно исключаем пакеты для других платформ/менеджеров —
+			// иначе на Linux может скачаться .deb или Windows .exe.
+			if strings.HasSuffix(name, ".deb") || strings.HasSuffix(name, ".exe") || strings.HasSuffix(name, ".dmg") {
+				continue
+			}
+			if strings.Contains(name, "appimage") {
 				downloadURL = asset.BrowserDownloadURL
 				break
 			}
 		}
-		if downloadURL == "" && len(release.Assets) > 0 {
+		if downloadURL == "" {
 			for _, asset := range release.Assets {
-				if strings.Contains(asset.Name, "linux") || strings.Contains(asset.Name, "x86_64") || strings.Contains(asset.Name, "amd64") {
+				name := strings.ToLower(asset.Name)
+				if strings.HasSuffix(name, ".deb") || strings.HasSuffix(name, ".exe") || strings.HasSuffix(name, ".dmg") {
+					continue
+				}
+				if strings.Contains(name, "linux") || strings.Contains(name, "x86_64") || strings.Contains(name, "amd64") {
 					downloadURL = asset.BrowserDownloadURL
 					break
 				}
 			}
 		}
-		if downloadURL == "" && len(release.Assets) > 0 {
-			downloadURL = release.Assets[0].BrowserDownloadURL
-		}
 
 		if downloadURL == "" {
-			a.emitEvent("onUpdateError", "No downloadable asset found")
+			a.emitEvent("onUpdateError", "No compatible Linux asset found in the latest release")
 			return
 		}
 
 		a.emitEvent("onUpdateProgress", map[string]interface{}{
-			"percent":  0,
-			"message":  "Downloading update...",
+			"percent": 0,
+			"message": "Downloading update...",
 		})
 
 		req, err := http.NewRequest("GET", downloadURL, nil)
@@ -695,7 +730,7 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 			a.emitEvent("onUpdateError", err.Error())
 			return
 		}
-		req.Header.Set("User-Agent", "GitDesktop/0.1.0")
+		req.Header.Set("User-Agent", "GitDesktop/"+version)
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -741,26 +776,18 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 
 		os.Chmod(tmpPath, 0755)
 
-		exePath, _ := os.Executable()
-		exeDir := filepath.Dir(exePath)
-		installPath := filepath.Join(exeDir, "gitdesktop")
-
-		if err := os.Rename(tmpPath, installPath); err != nil {
-			home, _ := os.UserHomeDir()
-			fallbackPath := filepath.Join(home, ".local", "bin", "gitdesktop")
-			os.MkdirAll(filepath.Dir(fallbackPath), 0755)
-			if err2 := os.Rename(tmpPath, fallbackPath); err2 != nil {
-				a.emitEvent("onUpdateError", "Failed to install update: "+err2.Error())
-				return
-			}
-			installPath = fallbackPath
+		// Подменяем именно тот файл, из которого реально запущен текущий процесс,
+		// а не предполагаемый ~/.local/bin/gitdesktop.
+		if err := os.Rename(tmpPath, currentExe); err != nil {
+			a.emitEvent("onUpdateError", "Failed to install update: "+err.Error())
+			return
 		}
 
 		a.emitEvent("onUpdateDone", "restart")
 
 		go func() {
 			time.Sleep(500 * time.Millisecond)
-			cmd := exec.Command(installPath)
+			cmd := exec.Command(currentExe)
 			cmd.Start()
 			os.Exit(0)
 		}()
