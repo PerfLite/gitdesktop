@@ -231,7 +231,7 @@ async function renderMain() {
       </div>
       <div class="actions">
         <span style="color:var(--accent);font-weight:600;font-size:12px;margin-right:6px">@${state.user}</span>
-        <button class="icon-btn" id="settings-btn" title="Settings" style="color:var(--text)">${icon('settings')}</button>
+        <button class="icon-btn" id="settings-btn" title="Settings" style="color:#fff">${icon('settings')}</button>
         <button class="icon-btn" id="about-btn" title="About">${icon('info')}</button>
         <button class="icon-btn" id="refresh-btn" title="Refresh">${icon('refresh')}</button>
         <button class="icon-btn" id="logout-btn" title="Sign out">${icon('logout')}</button>
@@ -436,12 +436,16 @@ function showSettings() {
       <button class="btn primary" id="settings-close">Done</button>
     </div>`);
   const slider = $('#font-size-slider');
-  slider.oninput = () => {
+  const applySize = () => {
     const size = parseInt(slider.value);
     state.fontSize = size;
     $('#font-size-val').textContent = size + 'px';
     document.documentElement.style.setProperty('--app-font-size', size + 'px');
+    document.documentElement.style.fontSize = size + 'px';
+    document.body.style.fontSize = size + 'px';
   };
+  slider.oninput = applySize;
+  slider.onchange = applySize;
   $('#settings-close').onclick = () => { saveFontSize(); closeModal(); };
 }
 
@@ -455,6 +459,8 @@ function loadFontSize() {
     if (saved) {
       state.fontSize = parseInt(saved) || 14;
       document.documentElement.style.setProperty('--app-font-size', state.fontSize + 'px');
+      document.documentElement.style.fontSize = state.fontSize + 'px';
+      document.body.style.fontSize = state.fontSize + 'px';
     }
   } catch(e) {}
 }
