@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -200,6 +201,154 @@ func (c *GitHubClient) GetGitIgnoreTemplate(name string) (string, error) {
 	}
 	json.NewDecoder(resp.Body).Decode(&tmpl)
 	return tmpl.Source, nil
+}
+
+type GitHubFileNode struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Type string `json:"type"`
+	SHA  string `json:"sha"`
+	Size int64  `json:"size"`
+}
+
+type GitHubTreeEntry struct {
+	Path string `json:"path"`
+	Mode string `json:"mode"`
+	Type string `json:"type"`
+	Size int64  `json:"size"`
+	SHA  string `json:"sha"`
+}
+
+type GitHubTreeResponse struct {
+	Truncated bool              `json:"truncated"`
+	Tree      []GitHubTreeEntry `json:"tree"`
+}
+
+type GitHubCommitItem struct {
+	SHA       string `json:"sha"`
+	Message   string `json:"commit_message"`
+	Author    string `json:"commit_author"`
+	Date      string `json:"commit_date"`
+}
+
+func (c *GitHubClient) GetRepoTree(owner, repo, branch string) ([]GitHubTreeEntry, error) {
+	url := fmt.Sprintf("/repos/%s/%s/git/trees/%s?recursive=1", owner, repo, branch)
+	resp, err := c.doRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	var tree GitHubTreeResponse
+	json.NewDecoder(resp.Body).Decode(&tree)
+	return tree.Tree, nil
+}
+
+func (c *GitHubClient) GetRepoReadme(owner, repo string) (string, error) {
+	resp, err := c.doRequest("GET", fmt.Sprintf("/repos/%s/%s/readme", owner, repo), nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	var file struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	json.NewDecoder(resp.Body).Decode(&file)
+	if file.Encoding == "base64" {
+		data, err := base64.StdEncoding.DecodeString(file.Content)
+		if err == nil {
+			return string(data), nil
+		}
+	}
+	return file.Content, nil
+}
+
+func (c *GitHubClient) GetRepoCommits(owner, repo string) ([]GitHubCommitItem, error) {
+	resp, err := c.doRequest("GET", fmt.Sprintf("/repos/%s/%s/commits?per_page=50", owner, repo), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	var rawCommits []struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Message string `json:"message"`
+			Author  struct {
+				Name string `json:"name"`
+				Date string `json:"date"`
+			} `json:"author"`
+		} `json:"commit"`
+	}
+	json.NewDecoder(resp.Body).Decode(&rawCommits)
+	var commits []GitHubCommitItem
+	for _, c := range rawCommits {
+		commits = append(commits, GitHubCommitItem{
+			SHA:      c.SHA,
+			Message:  c.Commit.Message,
+			Author:   c.Commit.Author.Name,
+			Date:     c.Commit.Author.Date,
+		})
+	}
+	return commits, nil
+}
+
+func (c *GitHubClient) GetRepoFileContent(owner, repo, path, branch string) (string, error) {
+	url := fmt.Sprintf("/repos/%s/%s/contents/%s?ref=%s", owner, repo, path, branch)
+	resp, err := c.doRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var file struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	json.Unmarshal(body, &file)
+	if file.Encoding == "base64" {
+		data, err := base64.StdEncoding.DecodeString(file.Content)
+		if err == nil {
+			return string(data), nil
+		}
+	}
+	return file.Content, nil
+}
+
+func (c *GitHubClient) GetRepoFileContentBase64(owner, repo, path, branch string) (string, error) {
+	url := fmt.Sprintf("/repos/%s/%s/contents/%s?ref=%s", owner, repo, path, branch)
+	resp, err := c.doRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var file struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	json.Unmarshal(body, &file)
+	return file.Content, nil
 }
 
 func (c *GitHubClient) GetLatestRelease(owner, repo string) (*ReleaseInfo, error) {

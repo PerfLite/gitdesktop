@@ -288,3 +288,175 @@ func IsGitRepo(path string) bool {
 	_, err := os.Stat(filepath.Join(path, ".git"))
 	return err == nil
 }
+
+type FileTreeNode struct {
+	Name     string         `json:"name"`
+	Path     string         `json:"path"`
+	IsDir    bool           `json:"is_dir"`
+	Children []FileTreeNode `json:"children,omitempty"`
+}
+
+func (r *GitRepo) FileTree() ([]FileTreeNode, error) {
+	out, err := r.run("ls-tree", "-r", "--name-only", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	if out == "" {
+		return nil, nil
+	}
+
+	type node struct {
+		name     string
+		path     string
+		isDir    bool
+		children []*node
+	}
+
+	registry := make(map[string]*node)
+	var topNodes []*node
+
+	for _, fpath := range strings.Split(out, "\n") {
+		fpath = strings.TrimSpace(fpath)
+		if fpath == "" {
+			continue
+		}
+		parts := strings.Split(fpath, "/")
+
+		for i := 0; i < len(parts); i++ {
+			p := strings.Join(parts[:i+1], "/")
+			if _, exists := registry[p]; exists {
+				continue
+			}
+			n := &node{
+				name:  parts[i],
+				path:  p,
+				isDir: i < len(parts)-1,
+			}
+			if n.isDir {
+				n.children = make([]*node, 0)
+			}
+			registry[p] = n
+
+			if i == 0 {
+				topNodes = append(topNodes, n)
+			} else {
+				parent := registry[strings.Join(parts[:i], "/")]
+				parent.children = append(parent.children, n)
+			}
+		}
+	}
+
+	var convert func(n *node) FileTreeNode
+	convert = func(n *node) FileTreeNode {
+		result := FileTreeNode{
+			Name:  n.name,
+			Path:  n.path,
+			IsDir: n.isDir,
+		}
+		if n.isDir && len(n.children) > 0 {
+			result.Children = make([]FileTreeNode, len(n.children))
+			for i, child := range n.children {
+				result.Children[i] = convert(child)
+			}
+		}
+		return result
+	}
+
+	result := make([]FileTreeNode, len(topNodes))
+	for i, n := range topNodes {
+		result[i] = convert(n)
+	}
+	return result, nil
+}
+
+func (r *GitRepo) FileContent(fpath string) (string, error) {
+	absPath := filepath.Join(r.path, fpath)
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return "", err
+	}
+	if len(data) > 500000 {
+		data = data[:500000]
+	}
+	return string(data), nil
+}
+
+func (r *GitRepo) ReadmeContent() string {
+	candidates := []string{"README.md", "readme.md", "README.rst", "README.txt", "README", "readme"}
+	for _, name := range candidates {
+		data, err := os.ReadFile(filepath.Join(r.path, name))
+		if err == nil {
+			if len(data) > 100000 {
+				data = data[:100000]
+			}
+			return string(data)
+		}
+	}
+	return ""
+}
+
+func buildTreeFromEntries(entries []GitHubTreeEntry) []FileTreeNode {
+	type node struct {
+		name     string
+		path     string
+		isDir    bool
+		children []*node
+	}
+
+	registry := make(map[string]*node)
+	var topNodes []*node
+
+	dirs := make(map[string]bool)
+	for _, e := range entries {
+		if e.Type == "tree" {
+			dirs[e.Path] = true
+		}
+	}
+
+	for _, e := range entries {
+		parts := strings.Split(e.Path, "/")
+		for i := 0; i < len(parts); i++ {
+			p := strings.Join(parts[:i+1], "/")
+			if _, exists := registry[p]; exists {
+				continue
+			}
+			n := &node{
+				name:  parts[i],
+				path:  p,
+				isDir: dirs[p],
+			}
+			if n.isDir {
+				n.children = make([]*node, 0)
+			}
+			registry[p] = n
+			if i == 0 {
+				topNodes = append(topNodes, n)
+			} else {
+				parent := registry[strings.Join(parts[:i], "/")]
+				parent.children = append(parent.children, n)
+			}
+		}
+	}
+
+	var convert func(n *node) FileTreeNode
+	convert = func(n *node) FileTreeNode {
+		result := FileTreeNode{
+			Name:  n.name,
+			Path:  n.path,
+			IsDir: n.isDir,
+		}
+		if n.isDir && len(n.children) > 0 {
+			result.Children = make([]FileTreeNode, len(n.children))
+			for i, child := range n.children {
+				result.Children[i] = convert(child)
+			}
+		}
+		return result
+	}
+
+	result := make([]FileTreeNode, len(topNodes))
+	for i, n := range topNodes {
+		result[i] = convert(n)
+	}
+	return result
+}

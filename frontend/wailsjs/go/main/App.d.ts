@@ -34,6 +34,10 @@ export function GetCurrentUser():Promise<string>;
 
 export function GetDiff(arg1:string):Promise<main.DiffResult>;
 
+export function GetFileContent(arg1:string):Promise<main.FileContentResult>;
+
+export function GetFileTree():Promise<Array<main.FileTreeNode>>;
+
 export function GetGitIgnoreTemplates():Promise<Array<string>>;
 
 export function GetHistory():Promise<Array<main.CommitInfo>>;
@@ -41,6 +45,18 @@ export function GetHistory():Promise<Array<main.CommitInfo>>;
 export function GetLastClonePath():Promise<string>;
 
 export function GetLocalPath():Promise<string>;
+
+export function GetReadme():Promise<string>;
+
+export function GetRemoteFileContent(arg1:string):Promise<main.FileContentResult>;
+
+export function GetRemoteFileContentBase64(arg1:string):Promise<main.FileContentResult>;
+
+export function GetRemoteFileTree():Promise<Array<main.FileTreeNode>>;
+
+export function GetRemoteHistory():Promise<Array<main.CommitInfo>>;
+
+export function GetRemoteReadme():Promise<string>;
 
 export function GetRepos():Promise<main.ReposResult>;
 
@@ -67,6 +83,8 @@ export function OpenURL(arg1:string):Promise<void>;
 export function Push():Promise<main.PushResult>;
 
 export function SaveConfigKey(arg1:string,arg2:any):Promise<Record<string, any>>;
+
+export function SetCurrentRepo(arg1:Record<string, any>):Promise<void>;
 
 export function StartWatcher():Promise<Record<string, any>>;
 

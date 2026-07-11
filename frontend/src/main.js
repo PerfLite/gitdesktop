@@ -1,4 +1,4 @@
-import { GetSavedToken, Login, Logout, GetCachedRepos, GetRepos, OpenLocalRepo, GetSavedRepoPath, CloneRepo, GetLastClonePath, GetChanges, GetDiff, Commit, Fetch, GetBranchInfo, GetBranches, CheckoutBranch, GetCommitDiff, GetHistory, OpenInBrowser, OpenInFiles, GetLocalPath, GetConfig, CreateRepo, DeleteRepo, GetGitIgnoreTemplates, StartWatcher, StopWatcher, GetVersion, CheckForUpdates, DownloadUpdate, OAuthLogin, OpenURL } from '../wailsjs/go/main/App';
+import { GetSavedToken, Login, Logout, GetCachedRepos, GetRepos, OpenLocalRepo, GetSavedRepoPath, CloneRepo, GetLastClonePath, GetChanges, GetDiff, Commit, Fetch, GetBranchInfo, GetBranches, CheckoutBranch, GetCommitDiff, GetHistory, OpenInBrowser, OpenInFiles, GetLocalPath, GetConfig, CreateRepo, DeleteRepo, GetGitIgnoreTemplates, StartWatcher, StopWatcher, GetVersion, CheckForUpdates, DownloadUpdate, OAuthLogin, OpenURL, GetFileTree, GetFileContent, GetReadme, SetCurrentRepo, GetRemoteFileTree, GetRemoteFileContent, GetRemoteFileContentBase64, GetRemoteReadme, GetRemoteHistory } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import githubLogo from './assets/GitHub-logo.gif';
 import githubIcon from './assets/github-64.png';
@@ -74,7 +74,7 @@ const icons = {
   download:`<svg viewBox="0 0 16 16"><path d="M8 12a.75.75 0 0 1-.53-.22l-4.25-4.25a.75.75 0 0 1 1.06-1.06L8 10.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25A.75.75 0 0 1 8 12z"/><path d="M8 1.75a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-1.5 0v-8.5A.75.75 0 0 1 8 1.75zM1.75 13.5a.75.75 0 0 1 .75-.75h11a.75.75 0 0 1 0 1.5h-11a.75.75 0 0 1-.75-.75z"/></svg>`,
   info:    `<svg viewBox="0 0 16 16"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v12.5A1.75 1.75 0 0 1 14.25 16H1.75A1.75 1.75 0 0 1 0 14.25ZM1.75 1.5a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V1.75a.25.25 0 0 0-.25-.25ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>`,
   telegram:`<svg viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.515-3.106a.5.5 0 0 0-.384-.155l-4.047 1.35-1.497-1.238a.3.3 0 0 0-.39.14l-.668 1.435-.668-1.435a.3.3 0 0 0-.39-.14l-1.497 1.238-4.047-1.355a.5.5 0 0 0-.572.25L1.86 7.14a.5.5 0 0 0 .057.548l2.636 2.15-2.636 2.15a.5.5 0 0 0-.057.548l1.068 2.37a.5.5 0 0 0 .648.257l4.11-1.695 1.497 1.238a.3.3 0 0 0 .39-.14l.668-1.435.668 1.435a.3.3 0 0 0 .39.14l1.497-1.238 4.11 1.695a.5.5 0 0 0 .648-.257l1.068-2.37a.5.5 0 0 0-.057-.548l-2.636-2.15 2.636-2.15a.5.5 0 0 0 .057-.548L13.056 2.15a.5.5 0 0 0-.571-.256zM7.38 10.36l-1.32 4.88a.15.15 0 0 0 .23.16l1.31-.59 1.31.59a.15.15 0 0 0 .23-.16l-1.32-4.88h.74l1.53-5.36a.15.15 0 0 0-.23-.16L9.32 9.21l-1.31-.59a.15.15 0 0 0-.23.16l-1.53 5.36h.74z"/></svg>`,
-  settings:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="16" cy="16" r="4" fill="black"/></mask></defs><g mask="url(#m)" fill="currentColor"><circle cx="16" cy="16" r="10"/><rect x="14" y="2" width="4" height="28" transform="rotate(0 16 16)"/><rect x="14" y="2" width="4" height="28" transform="rotate(45 16 16)"/><rect x="14" y="2" width="4" height="28" transform="rotate(90 16 16)"/><rect x="14" y="2" width="4" height="28" transform="rotate(135 16 16)"/></g></svg>`,
+  settings:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065Z"/><circle cx="12" cy="12" r="3.2"/></svg>`,
 };
 
 function icon(name) { return icons[name] || ''; }
@@ -393,8 +393,8 @@ async function showAbout() {
             <span>GitHub: <strong style="color:var(--accent)">PerfLite</strong></span>
           </a>
           <a id="about-telegram" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 8px;border-radius:4px;text-decoration:none;color:var(--text)" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
-            <svg viewBox="0 0 16 16" style="width:16px;height:16px;fill:var(--accent);flex-shrink:0"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM4.677 5.466l1.595 5.98-1.96-.93-.684 2.17a.5.5 0 0 0 .863.044l1.592-2.05 2.71 2.01a.5.5 0 0 0 .778-.17L13.19 3.97a.5.5 0 0 0-.69-.6L4.677 5.466z"/></svg>
-            <span>Telegram: <strong style="color:var(--accent)">@bashakul</strong></span>
+            <svg viewBox="0 0 50 50" style="width:16px;height:16px;flex-shrink:0"><circle cx="25" cy="25" r="24" fill="#29A9E1"/><path d="M10.5 24.6c7.3-3.2 12.2-5.3 14.7-6.3 7-2.9 8.4-3.4 9.4-3.4.2 0 .6.1.9.3.2.2.3.4.3.6 0 .2-.1.6-.1.6-.6 5.7-3.3 14.1-4.8 18.7-.3 1.1-.9 1.5-1.4 1.5-.6 0-1.1-.4-1.7-1-2.4-2.3-4.6-4.1-7.4-6.4-.4-.4-.2-.7.1-.8.2-.2 4.3-3.9 8.5-7.7.2-.2.3-.3 0-.1-1.3.9-7.2 5.2-8.5 5.8-.5.3-1.1.3-1.8.1-1-.3-3.4-1.1-5.4-1.8-.7-.3-1.1-.5-1-.8.1-.2.1-.3.7-.4z" fill="#fff"/></svg>
+            <span>Telegram: <strong style="color:var(--accent)">PerfLite</strong></span>
           </a>
         </div>
       </div>
@@ -405,8 +405,8 @@ async function showAbout() {
           <span style="background:var(--sidebar);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--accent)">Go</span>
           <span style="background:var(--sidebar);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--green)">Wails v2</span>
           <span style="background:var(--sidebar);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--yellow)">WebKit2GTK</span>
-          <span style="background:var(--sidebar);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--red)">GitHub API</span>
-          <span style="background:var(--sidebar);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:#c9a0dc">Git CLI</span>
+          <span style="background:var(--sidebar);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:#38bdf8">Vue 3</span>
+          <span style="background:var(--sidebar);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:#c9a0dc">Monaco</span>
         </div>
       </div>
     </div>
@@ -471,6 +471,7 @@ async function openRepo(idx) {
   state.activeTab = 'changes';
   state.activeFile = null;
   showScreen('repo');
+  await SetCurrentRepo(repo);
   renderRepoScreen(repo);
 
   try {
@@ -516,6 +517,8 @@ function renderRepoScreen(repo) {
         <div class="panel-tabs">
           <div class="panel-tab active" id="tab-changes">Changes</div>
           <div class="panel-tab" id="tab-history">History</div>
+          <div class="panel-tab" id="tab-files">Files</div>
+          <div class="panel-tab" id="tab-readme">Readme</div>
         </div>
         <div id="panel-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
           <div class="changes-list" id="changes-list"></div>
@@ -537,6 +540,7 @@ function renderRepoScreen(repo) {
           </button>
         </div>
       </div>
+      <div class="panel-resizer" id="panel-resizer"></div>
       <div class="diff-panel">
         <div class="diff-header" id="diff-header">Select a file to see the diff</div>
         <div class="diff-content" id="diff-content">
@@ -554,7 +558,37 @@ function renderRepoScreen(repo) {
   $('#delete-btn').onclick = showDeleteDialog;
   $('#tab-changes').onclick = () => switchTab('changes');
   $('#tab-history').onclick = () => switchTab('history');
+  $('#tab-files').onclick = () => switchTab('files');
+  $('#tab-readme').onclick = () => switchTab('readme');
   $('#commit-btn').onclick = doCommit;
+
+  const resizer = $('#panel-resizer');
+  const changesPanel = $('.changes-panel');
+  let isResizing = false;
+  resizer.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    resizer.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const repoBody = $('.repo-body');
+    const rect = repoBody.getBoundingClientRect();
+    let newWidth = e.clientX - rect.left;
+    if (newWidth < 150) newWidth = 150;
+    if (newWidth > 400) newWidth = 400;
+    changesPanel.style.width = newWidth + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      resizer.classList.remove('active');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  });
 
   refreshChanges();
   refreshBranch();
@@ -568,12 +602,219 @@ async function backToMain() {
 
 function switchTab(tab) {
   state.activeTab = tab;
+  state.activeFile = null;
   $('#tab-changes').classList.toggle('active', tab === 'changes');
   $('#tab-history').classList.toggle('active', tab === 'history');
+  $('#tab-files').classList.toggle('active', tab === 'files');
+  $('#tab-readme').classList.toggle('active', tab === 'readme');
+  const commitForm = $('.commit-form');
+  commitForm.style.display = tab === 'changes' ? '' : 'none';
+  resetDiffPanel();
   if (tab === 'changes') {
     refreshChanges();
-  } else {
+  } else if (tab === 'history') {
     loadHistory();
+  } else if (tab === 'files') {
+    loadFileTree();
+  } else if (tab === 'readme') {
+    loadReadme();
+  }
+}
+
+function resetDiffPanel() {
+  const header = $('#diff-header');
+  const content = $('#diff-content');
+  if (header) header.textContent = 'Select a file to see the diff';
+  if (content) {
+    content.className = 'diff-content';
+    content.innerHTML = '<div class="diff-placeholder">Select a file from the list</div>';
+  }
+}
+
+async function loadReadme() {
+  const header = $('#diff-header');
+  const content = $('#diff-content');
+  if (header) header.textContent = 'README';
+  if (content) {
+    content.className = 'diff-content';
+    content.innerHTML = '<div class="diff-placeholder">Loading README...</div>';
+  }
+  try {
+    const path = await GetLocalPath();
+    let readme;
+    if (path) {
+      readme = await GetReadme();
+    } else {
+      readme = await GetRemoteReadme();
+    }
+    if (!readme) {
+      if (content) content.innerHTML = '<div class="diff-placeholder">No README found</div>';
+      return;
+    }
+    if (content) {
+      content.className = 'diff-content md-rendered';
+      content.innerHTML = renderMarkdown(readme);
+    }
+  } catch(e) {
+    if (content) content.innerHTML = '<div class="diff-placeholder">Failed to load README</div>';
+  }
+}
+
+function renderMarkdown(text) {
+  let html = escHtml(text);
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:var(--accent)">$1</a>');
+  html = html.replace(/^(?!<[hbulo]|<\/|<li|<code|<pre|<a|<strong|<em)(.+)$/gm, '<p>$1</p>');
+  html = html.replace(/\n{2,}/g, '\n');
+  return html;
+}
+
+async function loadFileTree() {
+  const panel = $('#panel-content');
+  if (!panel) return;
+  panel.innerHTML = '<div class="diff-placeholder">Loading files...</div>';
+  try {
+    const path = await GetLocalPath();
+    let tree;
+    if (path) {
+      tree = await GetFileTree();
+    } else {
+      tree = await GetRemoteFileTree();
+    }
+    if (!tree || !tree.length) {
+      panel.innerHTML = '<div class="no-changes" style="flex-direction:column"><span style="color:var(--muted)">No files found</span>';
+      if (!path) {
+        panel.innerHTML += '<button class="btn" id="files-clone-btn" style="margin-top:8px">' + icon('download') + ' Clone</button>';
+      }
+      panel.innerHTML += '</div>';
+      const cloneBtn = $('#files-clone-btn');
+      if (cloneBtn) cloneBtn.onclick = () => showCloneDialog(state.currentRepo?.clone_url, state.currentRepo?.name);
+      return;
+    }
+    panel.innerHTML = `<div class="file-tree" id="file-tree">${renderFileTree(tree)}</div>`;
+    panel.querySelectorAll('.ft-item').forEach(el => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        if (el.dataset.dir === 'true') {
+          el.classList.toggle('collapsed');
+          const children = el.querySelector('.ft-children');
+          if (children) children.classList.toggle('hidden');
+        } else {
+          $$('.ft-item').forEach(x => x.classList.remove('selected'));
+          el.classList.add('selected');
+          showFileContent(el.dataset.path);
+        }
+      };
+    });
+  } catch(e) {
+    panel.innerHTML = '<div class="no-changes"><span style="color:var(--muted)">Failed to load files</span></div>';
+  }
+}
+
+function renderFileTree(nodes, depth = 0) {
+  if (!nodes || !nodes.length) return '';
+  return nodes.map(n => {
+    if (n.is_dir) {
+      return `<div class="ft-item ft-dir" data-dir="true" data-path="${n.path}" style="padding-left:${depth * 16 + 8}px">
+        <span class="ft-arrow">&#9656;</span>
+        <span style="color:var(--accent)">${icon('folder')}</span>
+        <span>${n.name}</span>
+        <div class="ft-children hidden">${renderFileTree(n.children, depth + 1)}</div>
+      </div>`;
+    }
+    const ext = (n.name.split('.').pop() || '').toLowerCase();
+    const extColors = { js: '#f1e05a', ts: '#3178c6', go: '#00ADD8', py: '#3572A5', rs: '#dea584', rb: '#701516', java: '#b07219', html: '#e34c26', css: '#563d7c', json: '#40d47e', md: '#ffffff', sh: '#89e051', yml: '#cb171e', yaml: '#cb171e', toml: '#9c4221' };
+    const color = extColors[ext] || 'var(--muted)';
+    return `<div class="ft-item ft-file" data-dir="false" data-path="${n.path}" style="padding-left:${depth * 16 + 24}px">
+      <span style="width:14px;height:14px;border-radius:2px;background:${color};opacity:0.6;flex-shrink:0"></span>
+      <span>${n.name}</span>
+    </div>`;
+  }).join('');
+}
+
+async function showFileContent(fpath) {
+  const header = $('#diff-header');
+  const content = $('#diff-content');
+  if (header) header.textContent = fpath;
+  if (content) {
+    content.className = 'diff-content';
+    content.innerHTML = '<div class="diff-placeholder">Loading...</div>';
+  }
+  try {
+    const ext = (fpath.split('.').pop() || '').toLowerCase();
+    const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'];
+    const isImage = imageExts.includes(ext);
+
+    if (isImage) {
+      const path = await GetLocalPath();
+      if (path) {
+        const filePath = path + '/' + fpath;
+        if (content) {
+          content.className = 'diff-content';
+          content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:16px">
+            <img src="file://${filePath}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;border:1px solid var(--border)" onerror="this.parentElement.innerHTML='<div class=\\'diff-placeholder\\'>Failed to load image</div>'">
+          </div>`;
+        }
+      } else {
+        try {
+          const res = await GetRemoteFileContentBase64(fpath);
+          if (res.ok && content) {
+            const dataUrl = `data:image/${ext === 'svg' ? 'svg+xml' : ext};base64,${res.content}`;
+            content.className = 'diff-content';
+            content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:16px">
+              <img src="${dataUrl}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;border:1px solid var(--border)" onerror="this.parentElement.innerHTML='<div class=\\'diff-placeholder\\'>Failed to load image</div>'">
+            </div>`;
+          } else if (content) {
+            content.innerHTML = '<div class="diff-placeholder">Failed to load image</div>';
+          }
+        } catch(e2) {
+          if (content) content.innerHTML = '<div class="diff-placeholder">Failed to load image</div>';
+        }
+      }
+      return;
+    }
+
+    const path = await GetLocalPath();
+    let res;
+    if (path) {
+      res = await GetFileContent(fpath);
+    } else {
+      res = await GetRemoteFileContent(fpath);
+    }
+    if (!res.ok) {
+      if (content) content.innerHTML = `<div class="diff-placeholder">${escHtml(res.error)}</div>`;
+      return;
+    }
+    if (['md', 'mdx', 'markdown'].includes(ext)) {
+      if (content) {
+        content.className = 'diff-content md-rendered';
+        content.innerHTML = renderMarkdown(res.content);
+      }
+    } else {
+      const lines = res.content.split('\n');
+      if (content) {
+        content.innerHTML = lines.map((line, i) => {
+          const num = String(i + 1).padStart(3, ' ');
+          return `<span class="diff-line"><span style="color:var(--muted);user-select:none;display:inline-block;width:40px;text-align:right;margin-right:12px;font-size:11px">${num}</span>${escHtml(line) || ' '}</span>`;
+        }).join('');
+        content.style.fontFamily = 'monospace';
+        content.style.fontSize = '12px';
+        content.style.lineHeight = '1.6';
+      }
+    }
+  } catch(e) {
+    if (content) content.innerHTML = '<div class="diff-placeholder">Failed to load file</div>';
   }
 }
 
@@ -751,7 +992,13 @@ async function doCheckout(branch) {
 
 async function loadHistory() {
   try {
-    const commits = await GetHistory();
+    const path = await GetLocalPath();
+    let commits;
+    if (path) {
+      commits = await GetHistory();
+    } else {
+      commits = await GetRemoteHistory();
+    }
     const panel = $('#panel-content');
     if (!panel) return;
     panel.innerHTML = `<div class="history-list">${

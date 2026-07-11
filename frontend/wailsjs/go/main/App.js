@@ -66,6 +66,14 @@ export function GetDiff(arg1) {
   return window['go']['main']['App']['GetDiff'](arg1);
 }
 
+export function GetFileContent(arg1) {
+  return window['go']['main']['App']['GetFileContent'](arg1);
+}
+
+export function GetFileTree() {
+  return window['go']['main']['App']['GetFileTree']();
+}
+
 export function GetGitIgnoreTemplates() {
   return window['go']['main']['App']['GetGitIgnoreTemplates']();
 }
@@ -80,6 +88,30 @@ export function GetLastClonePath() {
 
 export function GetLocalPath() {
   return window['go']['main']['App']['GetLocalPath']();
+}
+
+export function GetReadme() {
+  return window['go']['main']['App']['GetReadme']();
+}
+
+export function GetRemoteFileContent(arg1) {
+  return window['go']['main']['App']['GetRemoteFileContent'](arg1);
+}
+
+export function GetRemoteFileContentBase64(arg1) {
+  return window['go']['main']['App']['GetRemoteFileContentBase64'](arg1);
+}
+
+export function GetRemoteFileTree() {
+  return window['go']['main']['App']['GetRemoteFileTree']();
+}
+
+export function GetRemoteHistory() {
+  return window['go']['main']['App']['GetRemoteHistory']();
+}
+
+export function GetRemoteReadme() {
+  return window['go']['main']['App']['GetRemoteReadme']();
 }
 
 export function GetRepos() {
@@ -132,6 +164,10 @@ export function Push() {
 
 export function SaveConfigKey(arg1, arg2) {
   return window['go']['main']['App']['SaveConfigKey'](arg1, arg2);
+}
+
+export function SetCurrentRepo(arg1) {
+  return window['go']['main']['App']['SetCurrentRepo'](arg1);
 }
 
 export function StartWatcher() {

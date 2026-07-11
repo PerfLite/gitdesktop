@@ -1,19 +1,62 @@
-# README
+# GitDesktop
 
-## About
+Лёгкий нативный десктоп-клиент для GitHub, написанный с помощью [Wails](https://wails.io/) (Go-бэкенд + веб-фронтенд на чистом JavaScript). Цель проекта — дать простой локальный интерфейс для повседневной работы с репозиториями GitHub и git без необходимости лезть в консоль.
 
-This is the official Wails Vanilla template.
+## Возможности
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+- Просмотр и управление репозиториями GitHub (через OAuth device flow).
+- Локальные git-операции: статус изменений, история коммитов, дерево файлов, README.
+- Клонирование и создание репозиториев.
+- Автоматическое обновление из GitHub Releases:
+  - `.deb` устанавливается в портативный бинарник `~/.local/bin/gitdesktop`;
+  - `.AppImage` обновляется «на месте» (файл перезаписывается сам собой);
+  - при отсутствии пакета используется «сырой» собранный бинарник.
 
-## Live Development
+## Требования
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+Для запуска `.deb` и `.AppImage` необходима системная библиотека `libwebkit2gtk-4.1-0`:
 
-## Building
+```bash
+sudo apt install libwebkit2gtk-4.1-0 git
+```
 
-To build a redistributable, production mode package, use `wails build`.
+## Установка
+
+### AppImage
+
+Скачайте `gitdesktop-<версия>-x86_64.AppImage` из раздела Releases, сделайте исполняемым и запустите:
+
+```bash
+chmod +x gitdesktop-*.AppImage
+./gitdesktop-*.AppImage
+```
+
+### Debian / Ubuntu (.deb)
+
+```bash
+sudo apt install ./gitdesktop_<версия>_amd64.deb
+```
+
+### Из исходников
+
+Требуется Go 1.21+ и установленный Wails:
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+wails build
+```
+
+## Сборка релиза
+
+```bash
+make all       # собрать .deb и .AppImage (+ сырой бинарник)
+make release   # опубликовать артефакты в GitHub Releases (нужен `gh auth login`)
+```
+
+## Автообновление
+
+При запуске приложение сверяет свою версию (из `VERSION`) с последним тегаом релиза на GitHub. Если доступна более новая версия, она скачивается и устанавливается автоматически: для AppImage — поверх текущего файла, дляdeb/портативной сборки — в `~/.local/bin/gitdesktop`.
+
+## Лицензия
+
+Распространяется под лицензией **GPL-3.0**. См. файл [LICENSE](LICENSE).

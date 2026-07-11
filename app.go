@@ -32,6 +32,7 @@ type App struct {
 	client        *GitHubClient
 	config        Config
 	currentUser   string
+	currentRepo   map[string]interface{}
 	localRepo     *GitRepo
 	localPath     string
 	watcherMu     sync.Mutex
@@ -51,25 +52,65 @@ func (a *App) startup(ctx context.Context) {
 		a.client.SetToken(a.config.Token)
 	}
 
-	home, _ := os.UserHomeDir()
-	updatedBin := filepath.Join(home, ".local", "bin", "gitdesktop")
-	exePath, _ := os.Executable()
-
-	if strings.HasPrefix(exePath, home+"/.local/bin") {
+	// Защита "последней линии" от петли перезапуска: считаем, сколько раз
+	// процесс уже сам себя перезапускал в рамках одной цепочки запусков.
+	// Независимо от того, сработает ли проверка путей ниже, после
+	// нескольких попыток самозапуск гарантированно прекращается.
+	const maxRestarts = 2
+	restartCount := 0
+	if v := os.Getenv("GITDESKTOP_RESTART_COUNT"); v != "" {
+		fmt.Sscanf(v, "%d", &restartCount)
+	}
+	if restartCount >= maxRestarts {
 		return
 	}
 
-	if updatedBin != exePath {
-		if info, err := os.Stat(updatedBin); err == nil && info.Size() > 1000000 {
-			os.Chmod(updatedBin, 0755)
-			go func() {
-				time.Sleep(200 * time.Millisecond)
-				cmd := exec.Command(updatedBin)
-				cmd.Start()
-				os.Exit(0)
-			}()
+	// Запущено из AppImage — оно самоуправляемое (обновляется на месте),
+	// не перенаправляем запуск в ~/.local/bin/gitdesktop.
+	if os.Getenv("APPIMAGE") != "" {
+		return
+	}
+
+	home, _ := os.UserHomeDir()
+	updatedBin := filepath.Join(home, ".local", "bin", "gitdesktop")
+
+	// os.Executable() не гарантирует разворачивание симлинков и может
+	// вернуть путь, отличающийся от updatedBin даже если по факту это
+	// тот же файл (другой регистр, относительный путь, симлинк и т.д.).
+	// Поэтому сравниваем канонические (resolved) абсолютные пути, а не
+	// делаем хрупкое сравнение строк через HasPrefix.
+	rawExePath, _ := os.Executable()
+	exePath, err := filepath.EvalSymlinks(rawExePath)
+	if err != nil {
+		exePath = rawExePath
+	}
+	resolvedUpdatedBin, err := filepath.EvalSymlinks(updatedBin)
+	if err != nil {
+		resolvedUpdatedBin = updatedBin
+	}
+
+	// Если мы уже и есть тот самый обновлённый бинарник — ничего не делаем.
+	if exePath == resolvedUpdatedBin {
+		return
+	}
+
+	if info, err := os.Stat(updatedBin); err == nil && info.Size() > 1000000 {
+		// Не перезапускаем, если обновлённый бинарник не новее текущего —
+		// иначе при равных/более старых файлах можно зациклиться повторно.
+		curInfo, curErr := os.Stat(exePath)
+		if curErr == nil && !info.ModTime().After(curInfo.ModTime()) {
 			return
 		}
+
+		os.Chmod(updatedBin, 0755)
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			cmd := exec.Command(updatedBin)
+			cmd.Env = append(os.Environ(), fmt.Sprintf("GITDESKTOP_RESTART_COUNT=%d", restartCount+1))
+			cmd.Start()
+			os.Exit(0)
+		}()
+		return
 	}
 }
 
@@ -550,6 +591,10 @@ func (a *App) GetLocalPath() string {
 	return a.localPath
 }
 
+func (a *App) SetCurrentRepo(repo map[string]interface{}) {
+	a.currentRepo = repo
+}
+
 func (a *App) GetConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"token":           a.config.Token,
@@ -681,24 +726,59 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 	go func() {
 		defer os.Remove(tmpPath)
 
-		assetName := "gitdesktop"
 		var downloadURL string
-		for _, asset := range release.Assets {
-			if asset.Name == assetName || asset.Name == "gitdesktop-x86_64" {
-				downloadURL = asset.BrowserDownloadURL
-				break
-			}
+		var updatingAppImage bool
+		appImagePath := os.Getenv("APPIMAGE")
+		// Архивы (.deb/.rpm/.tar.*/.zip) неисполняемы — при самообновлении
+		// их нельзя скачивать как бинарник. .AppImage обрабатываем отдельно.
+		isArchive := func(name string) bool {
+			lower := strings.ToLower(name)
+			return strings.HasSuffix(lower, ".deb") ||
+				strings.HasSuffix(lower, ".rpm") ||
+				strings.HasSuffix(lower, ".tar.gz") ||
+				strings.HasSuffix(lower, ".tgz") ||
+				strings.HasSuffix(lower, ".zip")
 		}
-		if downloadURL == "" && len(release.Assets) > 0 {
+		// Запущено из AppImage — обновляем сам .AppImage на месте.
+		if appImagePath != "" {
 			for _, asset := range release.Assets {
-				if strings.Contains(asset.Name, "linux") || strings.Contains(asset.Name, "x86_64") || strings.Contains(asset.Name, "amd64") {
+				if strings.EqualFold(filepath.Ext(asset.Name), ".appimage") {
 					downloadURL = asset.BrowserDownloadURL
+					updatingAppImage = true
 					break
 				}
 			}
 		}
-		if downloadURL == "" && len(release.Assets) > 0 {
-			downloadURL = release.Assets[0].BrowserDownloadURL
+		// Иначе (deb/портативный бинарник) — сырой исполняемый файл.
+		if downloadURL == "" {
+			// 1. Точное имя сырого бинарника — приоритет.
+			for _, asset := range release.Assets {
+				if asset.Name == "gitdesktop" || asset.Name == "gitdesktop-x86_64" {
+					downloadURL = asset.BrowserDownloadURL
+					break
+				}
+			}
+			// 2. Linux x86_64 бинарник без расширения архива.
+			if downloadURL == "" {
+				for _, asset := range release.Assets {
+					if isArchive(asset.Name) {
+						continue
+					}
+					if strings.Contains(asset.Name, "linux") || strings.Contains(asset.Name, "x86_64") || strings.Contains(asset.Name, "amd64") {
+						downloadURL = asset.BrowserDownloadURL
+						break
+					}
+				}
+			}
+			// 3. Любой не-архивный ассет.
+			if downloadURL == "" {
+				for _, asset := range release.Assets {
+					if !isArchive(asset.Name) {
+						downloadURL = asset.BrowserDownloadURL
+						break
+					}
+				}
+			}
 		}
 
 		if downloadURL == "" {
@@ -762,19 +842,16 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 
 		os.Chmod(tmpPath, 0755)
 
-		exePath, _ := os.Executable()
-		exeDir := filepath.Dir(exePath)
-		installPath := filepath.Join(exeDir, "gitdesktop")
+		// Запущено из AppImage — перезаписываем сам .AppImage на месте.
+		// Иначе ставим портативный бинарник в ~/.local/bin/gitdesktop.
+		installPath := appImagePath
+		if !updatingAppImage || appImagePath == "" {
+			installPath = filepath.Join(home, ".local", "bin", "gitdesktop")
+		}
 
-		if err := os.Rename(tmpPath, installPath); err != nil {
-			home, _ := os.UserHomeDir()
-			fallbackPath := filepath.Join(home, ".local", "bin", "gitdesktop")
-			os.MkdirAll(filepath.Dir(fallbackPath), 0755)
-			if err2 := os.Rename(tmpPath, fallbackPath); err2 != nil {
-				a.emitEvent("onUpdateError", "Failed to install update: "+err2.Error())
-				return
-			}
-			installPath = fallbackPath
+		if err := installUpdate(tmpPath, installPath); err != nil {
+			a.emitEvent("onUpdateError", "Failed to install update: "+err.Error())
+			return
 		}
 
 		a.emitEvent("onUpdateDone", "restart")
@@ -788,6 +865,49 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 	}()
 
 	return map[string]interface{}{"ok": true, "started": true}
+}
+
+// installUpdate ставит скачанный временный файл поверх целевого пути
+// установки "на месте". Новый файл сначала записывается во временный файл
+// рядом с целью (в той же директории), а затем на него делается os.Rename.
+//
+// Это важно для обновления запущенного AppImage:
+//   - прямая запись/обрезка (O_TRUNC) по пути ВЫПОЛНЯЮЩЕГОСЯ файла падает с
+//     ETXTBSY ("text file busy") — Linux такое запрещает;
+//   - rename поверх выполняющегося файла разрешён: старый inode остаётся
+//     открытым для работающего процесса, а путь начинает указывать на новый
+//     файл (именно так работает штатный AppImageUpdate);
+//   - запись во временный файл в той же директории также решает проблему
+//     cross-device, когда скачанный tmpPath лежит на другой файловой системе.
+func installUpdate(tmpPath, installPath string) error {
+	dir := filepath.Dir(installPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	staged := filepath.Join(dir, ".gitdesktop-update-"+filepath.Base(installPath))
+	src, err := os.Open(tmpPath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	dst, err := os.OpenFile(staged, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		os.Remove(staged)
+		return err
+	}
+	if err := dst.Close(); err != nil {
+		os.Remove(staged)
+		return err
+	}
+	if err := os.Rename(staged, installPath); err != nil {
+		os.Remove(staged)
+		return err
+	}
+	return nil
 }
 
 // ── OAUTH DEVICE FLOW ─────────────────────────────────────────────────────
@@ -904,4 +1024,137 @@ func (a *App) pollDeviceCode(deviceCode string, interval int) {
 
 func (a *App) OpenURL(url string) {
 	go exec.Command("xdg-open", url).Start()
+}
+
+// ── FILE BROWSER ──────────────────────────────────────────────────────────
+
+func (a *App) GetFileTree() []FileTreeNode {
+	if a.localRepo == nil {
+		return nil
+	}
+	tree, err := a.localRepo.FileTree()
+	if err != nil {
+		return nil
+	}
+	return tree
+}
+
+type FileContentResult struct {
+	OK      bool   `json:"ok"`
+	Content string `json:"content"`
+	Error   string `json:"error,omitempty"`
+}
+
+func (a *App) GetFileContent(fpath string) FileContentResult {
+	if a.localRepo == nil {
+		return FileContentResult{OK: false, Error: "No local repo"}
+	}
+	content, err := a.localRepo.FileContent(fpath)
+	if err != nil {
+		return FileContentResult{OK: false, Error: err.Error()}
+	}
+	return FileContentResult{OK: true, Content: content}
+}
+
+func (a *App) GetReadme() string {
+	if a.localRepo != nil {
+		return a.localRepo.ReadmeContent()
+	}
+	if a.currentUser != "" && a.currentRepo != nil {
+		name, _ := a.currentRepo["name"].(string)
+		content, err := a.client.GetRepoReadme(a.currentUser, name)
+		if err == nil && content != "" {
+			return content
+		}
+	}
+	return ""
+}
+
+func (a *App) GetRemoteFileTree() []FileTreeNode {
+	if a.currentUser == "" || a.currentRepo == nil {
+		return nil
+	}
+	name, _ := a.currentRepo["name"].(string)
+	branch, _ := a.currentRepo["default_branch"].(string)
+	if branch == "" {
+		branch = "main"
+	}
+	entries, err := a.client.GetRepoTree(a.currentUser, name, branch)
+	if err != nil {
+		return nil
+	}
+	return buildTreeFromEntries(entries)
+}
+
+func (a *App) GetRemoteFileContent(fpath string) FileContentResult {
+	if a.currentUser == "" || a.currentRepo == nil {
+		return FileContentResult{OK: false, Error: "No repo selected"}
+	}
+	name, _ := a.currentRepo["name"].(string)
+	branch, _ := a.currentRepo["default_branch"].(string)
+	if branch == "" {
+		branch = "main"
+	}
+	content, err := a.client.GetRepoFileContent(a.currentUser, name, fpath, branch)
+	if err != nil {
+		return FileContentResult{OK: false, Error: err.Error()}
+	}
+	return FileContentResult{OK: true, Content: content}
+}
+
+func (a *App) GetRemoteFileContentBase64(fpath string) FileContentResult {
+	if a.currentUser == "" || a.currentRepo == nil {
+		return FileContentResult{OK: false, Error: "No repo selected"}
+	}
+	name, _ := a.currentRepo["name"].(string)
+	branch, _ := a.currentRepo["default_branch"].(string)
+	if branch == "" {
+		branch = "main"
+	}
+	content, err := a.client.GetRepoFileContentBase64(a.currentUser, name, fpath, branch)
+	if err != nil {
+		return FileContentResult{OK: false, Error: err.Error()}
+	}
+	return FileContentResult{OK: true, Content: content}
+}
+
+func (a *App) GetRemoteReadme() string {
+	if a.currentUser == "" || a.currentRepo == nil {
+		return ""
+	}
+	name, _ := a.currentRepo["name"].(string)
+	content, err := a.client.GetRepoReadme(a.currentUser, name)
+	if err != nil {
+		return ""
+	}
+	return content
+}
+
+func (a *App) GetRemoteHistory() []CommitInfo {
+	if a.currentUser == "" || a.currentRepo == nil {
+		return nil
+	}
+	name, _ := a.currentRepo["name"].(string)
+	apiCommits, err := a.client.GetRepoCommits(a.currentUser, name)
+	if err != nil {
+		return nil
+	}
+	var commits []CommitInfo
+	for _, c := range apiCommits {
+		sha := c.SHA
+		if len(sha) > 7 {
+			sha = sha[:7]
+		}
+		date := c.Date
+		if len(date) > 16 {
+			date = date[:16]
+		}
+		commits = append(commits, CommitInfo{
+			SHA:     sha,
+			Message: c.Message,
+			Author:  c.Author,
+			Date:    date,
+		})
+	}
+	return commits
 }

@@ -6,7 +6,7 @@ BINARY := $(BIN_DIR)/$(APP_NAME)
 LDFLAGS := -X main.version=$(VERSION)
 export PATH := $(HOME)/go/bin:$(HOME)/local/bin:$(PATH)
 
-.PHONY: build build-linux deb appimage clean all
+.PHONY: build build-linux deb appimage release clean all
 
 build:
 	wails build -ldflags "$(LDFLAGS)"
@@ -39,6 +39,17 @@ appimage: build-linux
 	@echo "Output: $(BIN_DIR)/$(APP_NAME)-$(VERSION)-x86_64.AppImage"
 
 all: deb appimage
+
+# Собирает все артефакты и публикует их в GitHub-релиз одной командой.
+# Для работы нужен авторизованный `gh` (gh auth login).
+release: all
+	@echo "Creating GitHub release v$(VERSION) and uploading artifacts..."
+	gh release create "v$(VERSION)" \
+		--title "v$(VERSION)" \
+		--latest \
+		$(BIN_DIR)/$(APP_NAME) \
+		$(BIN_DIR)/$(APP_NAME)_$(VERSION)_amd64.deb \
+		$(BIN_DIR)/$(APP_NAME)-$(VERSION)-x86_64.AppImage
 
 clean:
 	rm -rf AppDir $(BIN_DIR)/*.deb $(BIN_DIR)/*.AppImage

@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -11,7 +12,10 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-var version = "dev"
+//go:embed VERSION
+var versionFile string
+
+var version = strings.TrimSpace(versionFile)
 var oauthClientID = "Iv23lijxKXrbkQ1Io2a5"
 
 func main() {
