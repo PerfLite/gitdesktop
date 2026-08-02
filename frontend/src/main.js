@@ -1,4 +1,4 @@
-import { GetSavedToken, Login, Logout, GetCachedRepos, GetRepos, OpenLocalRepo, GetSavedRepoPath, CloneRepo, GetLastClonePath, GetChanges, GetDiff, Commit, Fetch, GetBranchInfo, GetBranches, CheckoutBranch, GetCommitDiff, GetHistory, OpenInBrowser, OpenInFiles, GetLocalPath, GetConfig, CreateRepo, DeleteRepo, GetGitIgnoreTemplates, StartWatcher, StopWatcher, GetVersion, CheckForUpdates, DownloadUpdate, OAuthLogin, OpenURL, GetFileTree, GetFileContent, GetReadme, SetCurrentRepo, GetRemoteFileTree, GetRemoteFileContent, GetRemoteFileContentBase64, GetRemoteReadme, GetRemoteHistory } from '../wailsjs/go/main/App';
+import { GetSavedToken, Login, Logout, GetCachedRepos, GetRepos, OpenLocalRepo, GetSavedRepoPath, CloneRepo, GetLastClonePath, GetChanges, GetDiff, Commit, Push, Fetch, GetBranchInfo, GetBranches, CheckoutBranch, GetCommitDiff, GetHistory, OpenInBrowser, OpenInFiles, GetLocalPath, GetConfig, CreateRepo, DeleteRepo, GetGitIgnoreTemplates, StartWatcher, StopWatcher, GetVersion, CheckForUpdates, DownloadUpdate, OAuthLogin, OpenURL, GetFileTree, GetFileContent, GetReadme, SetCurrentRepo, GetRemoteFileTree, GetRemoteFileContent, GetRemoteFileContentBase64, GetRemoteReadme, GetRemoteHistory, WriteFile, GetStashes, Stash, StashPop, StashDrop, GetConflictBlocks, ResolveConflict, GetPullRequests, CheckoutPullRequest } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import githubLogo from './assets/GitHub-logo.gif';
 import githubIcon from './assets/github-64.png';
@@ -11,6 +11,8 @@ const state = {
   activeTab: 'changes',
   activeFile: null,
   fontSize: 14,
+  editingFile: null,
+  editingOriginal: null,
 };
 
 function $(sel, ctx = document) { return ctx.querySelector(sel); }
@@ -41,11 +43,12 @@ function toast(msg, type = 'success') {
 
 function openModal(html) {
   const overlay = $('#modal-overlay');
-  overlay.innerHTML = `<div class="modal">${html}</div>`;
+  overlay.innerHTML = `<div class="modal">
+    <button class="modal-close-btn" id="modal-close-x">&times;</button>
+    ${html}
+  </div>`;
   overlay.classList.remove('hidden');
-  overlay.onclick = (e) => {
-    if (e.target === overlay) closeModal();
-  };
+  $('#modal-close-x').onclick = closeModal;
 }
 
 function closeModal() {
@@ -74,7 +77,8 @@ const icons = {
   download:`<svg viewBox="0 0 16 16"><path d="M8 12a.75.75 0 0 1-.53-.22l-4.25-4.25a.75.75 0 0 1 1.06-1.06L8 10.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25A.75.75 0 0 1 8 12z"/><path d="M8 1.75a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-1.5 0v-8.5A.75.75 0 0 1 8 1.75zM1.75 13.5a.75.75 0 0 1 .75-.75h11a.75.75 0 0 1 0 1.5h-11a.75.75 0 0 1-.75-.75z"/></svg>`,
   info:    `<svg viewBox="0 0 16 16"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v12.5A1.75 1.75 0 0 1 14.25 16H1.75A1.75 1.75 0 0 1 0 14.25ZM1.75 1.5a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V1.75a.25.25 0 0 0-.25-.25ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>`,
   telegram:`<svg viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.515-3.106a.5.5 0 0 0-.384-.155l-4.047 1.35-1.497-1.238a.3.3 0 0 0-.39.14l-.668 1.435-.668-1.435a.3.3 0 0 0-.39-.14l-1.497 1.238-4.047-1.355a.5.5 0 0 0-.572.25L1.86 7.14a.5.5 0 0 0 .057.548l2.636 2.15-2.636 2.15a.5.5 0 0 0-.057.548l1.068 2.37a.5.5 0 0 0 .648.257l4.11-1.695 1.497 1.238a.3.3 0 0 0 .39-.14l.668-1.435.668 1.435a.3.3 0 0 0 .39.14l1.497-1.238 4.11 1.695a.5.5 0 0 0 .648-.257l1.068-2.37a.5.5 0 0 0-.057-.548l-2.636-2.15 2.636-2.15a.5.5 0 0 0 .057-.548L13.056 2.15a.5.5 0 0 0-.571-.256zM7.38 10.36l-1.32 4.88a.15.15 0 0 0 .23.16l1.31-.59 1.31.59a.15.15 0 0 0 .23-.16l-1.32-4.88h.74l1.53-5.36a.15.15 0 0 0-.23-.16L9.32 9.21l-1.31-.59a.15.15 0 0 0-.23.16l-1.53 5.36h.74z"/></svg>`,
-  settings:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065Z"/><circle cx="12" cy="12" r="3.2"/></svg>`,
+  settings:`<svg viewBox="0 0 16 16"><path d="M8 0a8.2 8.2 0 0 1 .701.031C9.444.095 9.99.645 10.16 1.29l.288 1.107c.018.066.079.158.212.224.231.114.454.243.668.386.123.082.233.09.299.071l1.103-.303c.644-.176 1.392.021 1.82.63.27.385.506.792.704 1.218.315.675.111 1.422-.364 1.891l-.814.806c-.049.048-.098.147-.088.294.016.257.016.515 0 .772-.01.147.038.246.088.294l.814.806c.475.469.679 1.216.364 1.891a7.977 7.977 0 0 1-.704 1.217c-.428.61-1.176.807-1.82.63l-1.102-.302c-.067-.019-.177-.011-.3.071a5.909 5.909 0 0 1-.668.386c-.133.066-.194.158-.211.224l-.29 1.106c-.168.646-.715 1.196-1.458 1.26a8.006 8.006 0 0 1-1.402 0c-.743-.064-1.289-.614-1.458-1.26l-.289-1.106c-.018-.066-.079-.158-.212-.224a5.738 5.738 0 0 1-.668-.386c-.123-.082-.233-.09-.299-.071l-1.103.303c-.644.176-1.392-.021-1.82-.63a8.12 8.12 0 0 1-.704-1.218c-.315-.675-.111-1.422.363-1.891l.815-.806c.05-.048.098-.147.088-.294a6.214 6.214 0 0 1 0-.772c.01-.147-.038-.246-.088-.294l-.815-.806C.635 6.045.431 5.298.746 4.623a7.92 7.92 0 0 1 .704-1.217c.428-.61 1.176-.807 1.82-.63l1.102.302c.067.019.177.011.3-.071.214-.143.437-.272.668-.386.133-.066.194-.158.211-.224l.29-1.106C6.009.645 6.556.095 7.299.03 7.53.01 7.764 0 8 0Zm-.571 1.525c-.036.003-.108.036-.137.146l-.289 1.105c-.147.561-.549.967-.998 1.189-.173.086-.34.183-.5.29-.417.278-.97.423-1.529.27l-1.103-.303c-.109-.03-.175.016-.195.045-.22.312-.412.644-.573.99-.014.031-.021.11.059.19l.815.806c.411.406.562.957.53 1.456a4.709 4.709 0 0 0 0 .582c.032.499-.119 1.05-.53 1.456l-.815.806c-.081.08-.073-.159-.059.19.162.346.353.677.573.989.02.03.085.076.195.046l1.102-.303c.56-.153 1.113-.008 1.53.27.161.107.328.204.501.29.447.222.85.629.997 1.189l.289 1.105c.029.109.101.143.137.146a6.6 6.6 0 0 0 1.142 0c.036-.003.108-.036.137-.146l.289-1.105c.147-.561.549-.967.998-1.189.173-.086.34-.183.5-.29.417-.278.97-.423 1.529-.27l1.103.303c.109.029.175-.016.195-.045.22-.313.411-.644.573-.99.014-.031.021-.11-.059-.19l-.815-.806c-.411-.406-.562-.957-.53-1.456a4.709 4.709 0 0 0 0-.582c-.032-.499.119-1.05.53-1.456l.815-.806c.081-.08.073-.159.059-.19a6.464 6.464 0 0 0-.573-.989c-.02-.03-.085-.076-.195-.046l-1.102.303c-.56.153-1.113.008-1.53-.27a4.44 4.44 0 0 0-.501-.29c-.447-.222-.85-.629-.997-1.189l-.289-1.105c-.029-.11-.101-.143-.137-.146a6.6 6.6 0 0 0-1.142 0ZM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM9.5 8a1.5 1.5 0 1 0-3.001.001A1.5 1.5 0 0 0 9.5 8Z"/></svg>`,
+  chevron_down:`<svg viewBox="0 0 16 16"><path d="M4.427 7.427l3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427z"/></svg>`,
 };
 
 function icon(name) { return icons[name] || ''; }
@@ -88,10 +92,28 @@ const langColors = {
   Scala: '#c22d40', Haskell: '#5e5086', R: '#198CE7', GLSL: '#5686a5',
 };
 
+const langIcons = {
+  JavaScript: 'devicon-javascript-plain', TypeScript: 'devicon-typescript-plain',
+  Python: 'devicon-python-plain', Java: 'devicon-java-plain',
+  Kotlin: 'devicon-kotlin-plain', 'C++': 'devicon-cplusplus-plain',
+  C: 'devicon-c-plain', 'C#': 'devicon-csharp-plain', Go: 'devicon-go-plain',
+  Rust: 'devicon-rust-plain', Ruby: 'devicon-ruby-plain', PHP: 'devicon-php-plain',
+  Swift: 'devicon-swift-plain', Dart: 'devicon-dart-plain', HTML: 'devicon-html5-plain',
+  CSS: 'devicon-css3-plain', Shell: 'devicon-bash-plain', Lua: 'devicon-lua-plain',
+  Vue: 'devicon-vuejs-plain', Scala: 'devicon-scala-plain',
+  Haskell: 'devicon-haskell-plain', R: 'devicon-r-plain',
+};
+
 function langBadge(lang) {
   if (!lang) return '';
   const color = langColors[lang] || '#8b949e';
-  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${color}">
+  const cls = langIcons[lang];
+  if (cls) {
+    return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)">
+      <i class="${cls}" style="font-size:13px;color:${color};flex-shrink:0"></i>${lang}
+    </span>`;
+  }
+  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)">
     <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>${lang}
   </span>`;
 }
@@ -231,7 +253,7 @@ async function renderMain() {
       </div>
       <div class="actions">
         <span style="color:var(--accent);font-weight:600;font-size:12px;margin-right:6px">@${state.user}</span>
-        <button class="icon-btn" id="settings-btn" title="Settings" style="color:#fff">${icon('settings')}</button>
+        <button class="icon-btn" id="settings-btn" title="Settings">${icon('settings')}</button>
         <button class="icon-btn" id="about-btn" title="About">${icon('info')}</button>
         <button class="icon-btn" id="refresh-btn" title="Refresh">${icon('refresh')}</button>
         <button class="icon-btn" id="logout-btn" title="Sign out">${icon('logout')}</button>
@@ -431,6 +453,14 @@ function showSettings() {
           <span style="font-size:11px;color:var(--muted)">20</span>
         </div>
       </div>
+      <div class="field" style="margin-top:16px;">
+        <label>Theme</label>
+        <select class="input" id="theme-selector" style="margin-top:6px">
+          <option value="system" ${state.theme === 'system' ? 'selected' : ''}>System</option>
+          <option value="light" ${state.theme === 'light' ? 'selected' : ''}>Light</option>
+          <option value="dark" ${state.theme === 'dark' ? 'selected' : ''}>Dark</option>
+        </select>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn primary" id="settings-close">Done</button>
@@ -445,7 +475,30 @@ function showSettings() {
   };
   slider.oninput = applySize;
   slider.onchange = applySize;
-  $('#settings-close').onclick = () => { saveFontSize(); closeModal(); };
+  $('#settings-close').onclick = () => { 
+    saveFontSize(); 
+    saveTheme();
+    closeModal(); 
+  };
+}
+
+async function saveTheme() {
+  const sel = $('#theme-selector');
+  if (sel) {
+    state.theme = sel.value;
+    try { localStorage.setItem('gitdesktop-theme', state.theme); } catch(e) {}
+    applyTheme();
+    // Also save to backend config if SaveConfigKey is available (import it if needed, or just rely on localstorage)
+    // Actually wait, let's just use localStorage for simplicity, but we can also call Wails if we imported it.
+  }
+}
+
+function applyTheme() {
+  let t = state.theme || 'system';
+  if (t === 'system') {
+    t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  document.body.className = t === 'light' ? 'theme-light' : 'theme-dark';
 }
 
 function saveFontSize() {
@@ -496,15 +549,22 @@ function renderRepoScreen(repo) {
       <div class="left">
         <button class="icon-btn" id="back-btn" title="All repositories">${icon('back')}</button>
         <div class="toolbar-pill">
-          ${icon('book')} <span class="muted">${state.user} /</span> <strong>${repo.name}</strong>
+          ${icon('book')} <strong style="margin-left:4px;">${repo.name}</strong>
         </div>
-        <div class="toolbar-pill" id="branch-pill" title="Switch branch">
-          ${icon('branch')} <span id="branch-name">${repo.default_branch || 'main'}</span>
-          <span id="branch-ahead" class="ahead"></span>
-          <span style="color:var(--muted);font-size:10px;margin-left:2px">&#9662;</span>
+        <div class="toolbar-pill" id="branch-pill" title="Switch branch" style="display:flex; align-items:center; gap:6px; padding:4px 8px;">
+          <div style="flex-shrink:0; display:flex; color:var(--muted);">${icon('branch')}</div>
+          <div style="display:flex; flex-direction:column; line-height:1.2; align-items:flex-start;">
+             <span style="font-size:11px; color:var(--muted); font-weight:normal;">Current branch</span>
+             <div style="display:flex; align-items:center;">
+               <strong id="branch-name" style="font-size:13px;">${repo.default_branch || 'main'}</strong>
+               <span id="branch-ahead" class="ahead"></span>
+             </div>
+          </div>
+          <div style="flex-shrink:0; display:flex; margin-left:4px; color:var(--muted); align-items:center;">${icon('chevron_down')}</div>
         </div>
       </div>
       <div class="right">
+        <button class="btn" id="push-btn"><span style="color:#3fb950">${icon('cloud')}</span> Push origin</button>
         <button class="btn" id="fetch-btn"><span style="color:#58a6ff">${icon('cloud')}</span> Fetch origin</button>
         <button class="btn" id="clone-repo-btn"><span style="color:#a371f7">${icon('download')}</span> Clone</button>
         <button class="btn" id="view-github-btn"><span style="color:#3fb950">${icon('globe')}</span> View on GitHub</button>
@@ -520,23 +580,23 @@ function renderRepoScreen(repo) {
           <div class="panel-tab" id="tab-files">Files</div>
           <div class="panel-tab" id="tab-readme">Readme</div>
         </div>
-        <div id="panel-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div id="panel-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;">
           <div class="changes-list" id="changes-list"></div>
         </div>
         <div class="commit-form">
-          <div class="form-row">
-            <div class="avatar">${state.avatarUrl
-              ? `<img src="${state.avatarUrl}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`
+          <div class="form-row" style="align-items:center; margin-bottom: 6px;">
+            <div class="avatar" style="width:24px;height:24px;font-size:11px;">${state.avatarUrl
+              ? `<img src="${state.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`
               : `<span>${(state.user||'?')[0].toUpperCase()}</span>`
             }</div>
-            <div class="inputs">
-              <input class="input" id="commit-summary" placeholder="Summary (required)">
-              <input class="input" id="commit-desc" placeholder="Description (optional)">
-            </div>
+            <input class="input" id="commit-summary" placeholder="Summary (required)" style="flex:1;">
+          </div>
+          <div class="inputs" style="margin-bottom:8px;">
+            <textarea class="input commit-desc-input" id="commit-desc" placeholder="Description" rows="1" style="width:100%; min-height:80px; max-height:300px; resize:none; overflow-y:auto;" oninput="this.style.height = ''; this.style.height = Math.min(this.scrollHeight, 300) + 'px'"></textarea>
           </div>
           <div class="commit-error" id="commit-error"></div>
-          <button class="btn primary commit-btn" id="commit-btn" disabled style="opacity:.45">
-            ${icon('check')} Commit to ${repo.default_branch || 'main'}
+          <button class="btn primary commit-btn" id="commit-btn" disabled style="background:#1f6feb; border-color:#1f6feb; color:#fff; width:100%; justify-content:center; padding:6px; font-weight:bold;">
+            Commit to <strong style="margin-left:4px;">${repo.default_branch || 'main'}</strong>
           </button>
         </div>
       </div>
@@ -551,6 +611,7 @@ function renderRepoScreen(repo) {
 
   $('#back-btn').onclick = backToMain;
   $('#branch-pill').onclick = showBranchPicker;
+  $('#push-btn').onclick = doPush;
   $('#fetch-btn').onclick = doFetch;
   $('#clone-repo-btn').onclick = () => showCloneDialog(repo.clone_url, repo.name);
   $('#view-github-btn').onclick = () => OpenInBrowser(repo.html_url);
@@ -610,13 +671,19 @@ function switchTab(tab) {
   const commitForm = $('.commit-form');
   commitForm.style.display = tab === 'changes' ? '' : 'none';
   resetDiffPanel();
+  
+  const panel = $('#panel-content');
   if (tab === 'changes') {
+    panel.innerHTML = '<div class="changes-list" id="changes-list"></div>';
     refreshChanges();
   } else if (tab === 'history') {
+    panel.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading...</div>';
     loadHistory();
   } else if (tab === 'files') {
+    panel.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading...</div>';
     loadFileTree();
   } else if (tab === 'readme') {
+    panel.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading...</div>';
     loadReadme();
   }
 }
@@ -746,6 +813,8 @@ function renderFileTree(nodes, depth = 0) {
 async function showFileContent(fpath) {
   const header = $('#diff-header');
   const content = $('#diff-content');
+  state.editingFile = null;
+  state.editingOriginal = null;
   if (header) header.textContent = fpath;
   if (content) {
     content.className = 'diff-content';
@@ -813,8 +882,80 @@ async function showFileContent(fpath) {
         content.style.lineHeight = '1.6';
       }
     }
+    if (path && header && !['md', 'mdx', 'markdown'].includes(ext) && !isImage) {
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn-icon edit-btn';
+      editBtn.innerHTML = icons.edit;
+      editBtn.title = 'Edit file';
+      editBtn.onclick = () => enterEditMode(fpath, res.content);
+      header.style.display = 'flex';
+      header.style.alignItems = 'center';
+      header.style.gap = '8px';
+      header.textContent = fpath;
+      header.appendChild(editBtn);
+    }
   } catch(e) {
     if (content) content.innerHTML = '<div class="diff-placeholder">Failed to load file</div>';
+  }
+}
+
+function enterEditMode(fpath, originalContent) {
+  const header = $('#diff-header');
+  const content = $('#diff-content');
+  if (!header || !content) return;
+  state.editingFile = fpath;
+  state.editingOriginal = originalContent;
+  header.innerHTML = '';
+  const pathSpan = document.createElement('span');
+  pathSpan.textContent = fpath;
+  pathSpan.style.flex = '1';
+  header.appendChild(pathSpan);
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-sm btn-primary';
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = saveFile;
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn-sm btn-secondary';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = cancelEdit;
+  header.appendChild(saveBtn);
+  header.appendChild(cancelBtn);
+  content.className = 'diff-content editor-mode';
+  const textarea = document.createElement('textarea');
+  textarea.className = 'file-editor';
+  textarea.value = originalContent;
+  textarea.style.fontSize = state.fontSize + 'px';
+  textarea.spellcheck = false;
+  content.innerHTML = '';
+  content.appendChild(textarea);
+  textarea.focus();
+  textarea.setSelectionRange(0, 0);
+}
+
+async function saveFile() {
+  const content = $('#diff-content');
+  const textarea = content ? content.querySelector('textarea') : null;
+  if (!textarea || !state.editingFile) return;
+  const newContent = textarea.value;
+  const res = await WriteFile(state.editingFile, newContent);
+  if (res.ok) {
+    cancelEdit();
+    showFileContent(state.editingFile);
+    toast('File saved');
+  } else {
+    toast('Save failed: ' + (res.error || 'unknown'), 'error');
+  }
+}
+
+function cancelEdit() {
+  state.editingFile = null;
+  state.editingOriginal = null;
+  const header = $('#diff-header');
+  if (header) {
+    header.innerHTML = '';
+    header.style.display = '';
+    header.style.alignItems = '';
+    header.style.gap = '';
   }
 }
 
@@ -835,28 +976,94 @@ async function refreshChanges() {
     }
 
     const changes = res.changes || [];
+    const stashes = (await GetStashes()) || [];
+    
+    let html = '';
+    
+    // Header for changes
+    html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--sidebar);">
+      <span style="font-size:12px; font-weight:600; color:var(--text);">${changes.length} changed file${changes.length !== 1 ? 's' : ''}</span>
+      ${changes.length > 0 ? `<button id="btn-stash-all" class="btn" style="font-size:11px; padding:2px 8px; background:transparent; border-color:var(--border);">Stash all</button>` : ''}
+    </div>`;
+
     if (!changes.length) {
-      list.innerHTML = `<div class="no-changes">${icon('check')}<span>No local changes</span></div>`;
+      html += `<div class="no-changes">${icon('check')}<span>No local changes</span></div>`;
       setCommitBtn(false);
       autoCommitMessage([]);
-      return;
+    } else {
+      html += `<div style="flex:1; overflow-y:auto;">` + changes.map((c, i) => {
+        let cls = (c.code||'').includes('M') ? 'ci-M' : c.code === '??' || (c.code||'').includes('A') ? 'ci-A' : (c.code||'').includes('D') ? 'ci-D' : 'ci-dir';
+        let ico = c.is_dir ? icon('folder') : (c.code||'').includes('M') ? icon('edit') : (c.code||'').includes('D') ? icon('minus') : icon('plus');
+        
+        if (c.is_conflicted) {
+          cls = 'ci-C';
+          ico = `<svg viewBox="0 0 16 16" style="fill:var(--yellow);width:14px;height:14px"><path d="M8.22 1.754a.25.25 0 00-.44 0L1.698 13.132a.25.25 0 00.22.368h12.164a.25.25 0 00.22-.368L8.22 1.754zm-1.763-.707c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0114.082 15H1.918a1.75 1.75 0 01-1.543-2.575L6.457 1.047zM9 11a1 1 0 11-2 0 1 1 0 012 0zm-.25-5.25a.75.75 0 00-1.5 0v2.5a.75.75 0 001.5 0v-2.5z"></path></svg>`;
+        }
+        
+        return `<div class="change-item" data-idx="${i}" data-path="${c.path}" data-dir="${c.is_dir}" data-conflicted="${c.is_conflicted}">
+          <span class="ci-icon ${cls}">${ico}</span>
+          <span class="ci-path">${c.display}</span>
+          <span class="ci-code ${cls}">${c.is_dir ? '' : c.code}</span>
+        </div>`;
+      }).join('') + `</div>`;
     }
 
-    list.innerHTML = changes.map((c, i) => {
-      const cls = (c.code||'').includes('M') ? 'ci-M' : c.code === '??' || (c.code||'').includes('A') ? 'ci-A' : (c.code||'').includes('D') ? 'ci-D' : 'ci-dir';
-      const ico = c.is_dir ? icon('folder') : (c.code||'').includes('M') ? icon('edit') : (c.code||'').includes('D') ? icon('minus') : icon('plus');
-      return `<div class="change-item" data-idx="${i}" data-path="${c.path}" data-dir="${c.is_dir}">
-        <span class="ci-icon ${cls}">${ico}</span>
-        <span class="ci-path">${c.display}</span>
-        <span class="ci-code ${cls}">${c.is_dir ? '' : c.code}</span>
+    if (stashes.length > 0) {
+      html += `<div style="border-top:1px solid var(--border); background:var(--sidebar);">
+        <div style="padding:8px 12px; font-size:12px; font-weight:600; color:var(--text); border-bottom:1px solid var(--border);">Stashed Changes</div>
+        <div style="max-height:150px; overflow-y:auto;">
+          ${stashes.map(s => `
+            <div style="padding:8px 12px; border-bottom:1px solid var(--border); font-size:12px;">
+              <div style="font-weight:600; color:var(--text); margin-bottom:4px;">${escHtml(s.message)}</div>
+              <div style="color:var(--muted); font-size:11px; display:flex; justify-content:space-between; align-items:center;">
+                <span>${s.date}</span>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn btn-restore-stash" data-idx="${s.index}" style="font-size:11px; padding:2px 6px;">Restore</button>
+                  <button class="btn btn-drop-stash" data-idx="${s.index}" style="font-size:11px; padding:2px 6px; color:var(--danger); border-color:var(--danger);">Discard</button>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
       </div>`;
-    }).join('');
+    }
+
+    list.innerHTML = html;
 
     list.querySelectorAll('.change-item').forEach(el => {
       el.onclick = () => selectFile(parseInt(el.dataset.idx));
     });
 
-    setCommitBtn(true);
+    const btnStashAll = list.querySelector('#btn-stash-all');
+    if (btnStashAll) {
+      btnStashAll.onclick = async () => {
+        btnStashAll.disabled = true;
+        const r = await Stash();
+        if (r.ok) { toast('Changes stashed'); refreshChanges(); }
+        else toast('Failed to stash: ' + r.error, 'error');
+      };
+    }
+
+    list.querySelectorAll('.btn-restore-stash').forEach(btn => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        const r = await StashPop(btn.dataset.idx);
+        if (r.ok) { toast('Stash restored'); refreshChanges(); }
+        else { toast('Failed to restore: ' + r.error, 'error'); btn.disabled = false; }
+      };
+    });
+
+    list.querySelectorAll('.btn-drop-stash').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Are you sure you want to discard this stash?')) return;
+        btn.disabled = true;
+        const r = await StashDrop(btn.dataset.idx);
+        if (r.ok) { toast('Stash discarded'); refreshChanges(); }
+        else { toast('Failed to discard: ' + r.error, 'error'); btn.disabled = false; }
+      };
+    });
+
+    setCommitBtn(changes.length > 0);
     autoCommitMessage(changes);
   } catch(e) {
     console.error('refreshChanges error:', e);
@@ -898,6 +1105,13 @@ async function selectFile(idx) {
   if (!item || item.dataset.dir === 'true') return;
   const fpath = item.dataset.path;
   const header = $('#diff-header');
+  
+  if (item.dataset.conflicted === 'true') {
+    if (header) header.innerHTML = `<span style="color:var(--yellow)">⚠ Merge Conflict</span> <span style="margin-left:8px;font-family:monospace">${fpath}</span>`;
+    renderConflictResolver(fpath);
+    return;
+  }
+  
   if (header) header.textContent = fpath;
   try {
     const res = await GetDiff(fpath);
@@ -906,6 +1120,85 @@ async function selectFile(idx) {
     renderDiff('');
   }
 }
+
+async function renderConflictResolver(fpath) {
+  const el = $('#diff-content');
+  if (!el) return;
+  el.innerHTML = '<div style="padding:20px;text-align:center;">Loading conflict data...</div>';
+  try {
+    const res = await GetConflictBlocks(fpath);
+    if (!res.ok) throw new Error(res.error);
+    const blocks = res.blocks || [];
+    
+    window.conflictBlocks = blocks;
+    window.conflictPath = fpath;
+    renderConflictBlocks();
+  } catch(e) {
+    el.innerHTML = `<div class="diff-placeholder">Failed to load conflict: ${escHtml(e.message||e)}</div>`;
+  }
+}
+
+function renderConflictBlocks() {
+  const el = $('#diff-content');
+  let unresolvedCount = 0;
+  
+  let html = '<div style="padding:16px;">';
+  window.conflictBlocks.forEach((b, i) => {
+    if (b.type === 'normal') {
+      html += `<pre style="color:var(--text);font-family:monospace;font-size:12px;margin-bottom:8px;white-space:pre-wrap;background:var(--sidebar);padding:8px;border-radius:4px;">${escHtml(b.content)}</pre>`;
+    } else {
+      if (!b.resolved) unresolvedCount++;
+      html += `<div style="border:1px solid var(--border);border-radius:6px;margin-bottom:12px;overflow:hidden;background:var(--bg)">
+        <div style="display:flex;">
+          <div style="flex:1;border-right:1px solid var(--border);">
+            <div style="background:var(--diff-add);padding:4px 8px;font-size:11px;font-weight:600;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:var(--text)">Current Change</span>
+              ${!b.resolved ? `<button class="btn primary" style="padding:2px 8px;font-size:11px;" onclick="resolveConflictBlock(${i}, 'current')">Accept Current</button>` : ''}
+            </div>
+            <pre style="padding:8px;font-family:monospace;font-size:12px;color:var(--text);margin:0;white-space:pre-wrap;">${escHtml(b.current)}</pre>
+          </div>
+          <div style="flex:1;">
+            <div style="background:var(--diff-del);padding:4px 8px;font-size:11px;font-weight:600;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:var(--text)">Incoming Change</span>
+              ${!b.resolved ? `<button class="btn" style="padding:2px 8px;font-size:11px;border-color:var(--red);color:var(--red)" onclick="resolveConflictBlock(${i}, 'incoming')">Accept Incoming</button>` : ''}
+            </div>
+            <pre style="padding:8px;font-family:monospace;font-size:12px;color:var(--text);margin:0;white-space:pre-wrap;">${escHtml(b.incoming)}</pre>
+          </div>
+        </div>
+        ${b.resolved ? `<div style="background:var(--sidebar);padding:4px 8px;font-size:11px;text-align:center;color:var(--green)">Resolved (${b.choice === 'current' ? 'Current' : 'Incoming'} Accepted)</div>` : ''}
+      </div>`;
+    }
+  });
+  html += `</div>`;
+  
+  html += `<div style="padding:16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;align-items:center;background:var(--sidebar);position:sticky;bottom:0;">
+    ${unresolvedCount > 0 ? `<span style="color:var(--muted);font-size:12px;margin-right:12px;">${unresolvedCount} conflict${unresolvedCount !== 1 ? 's' : ''} remaining</span>` : ''}
+    <button class="btn primary" ${unresolvedCount > 0 ? 'disabled' : ''} onclick="commitConflictResolution()">Mark as Resolved</button>
+  </div>`;
+  
+  el.innerHTML = html;
+}
+
+window.resolveConflictBlock = (idx, choice) => {
+  const b = window.conflictBlocks[idx];
+  b.resolved = true;
+  b.choice = choice;
+  b.type = 'normal';
+  b.content = choice === 'current' ? b.current : b.incoming;
+  renderConflictBlocks();
+};
+
+window.commitConflictResolution = async () => {
+  const content = window.conflictBlocks.map(b => b.content).join('\\n');
+  const r = await ResolveConflict(window.conflictPath, content);
+  if (r.ok) {
+    toast('Conflict resolved!');
+    refreshChanges();
+    renderDiff('');
+  } else {
+    toast('Failed to resolve: ' + r.error, 'error');
+  }
+};
 
 function renderDiff(diff) {
   const el = $('#diff-content');
@@ -922,53 +1215,158 @@ function renderDiff(diff) {
 }
 
 async function showBranchPicker() {
-  const existing = $('#branch-dropdown');
-  if (existing) { existing.remove(); return; }
-
   try {
-    const branches = await GetBranches();
-    if (!branches || !branches.length) { toast('No local repo open', 'error'); return; }
-    const current = $('#branch-name')?.textContent?.trim() || '';
+    const existing = $('#branch-dropdown');
+    if (existing) { existing.remove(); return; }
 
     const pill = $('#branch-pill');
+    if (!pill) { toast('Error: pill not found', 'error'); return; }
     const rect = pill.getBoundingClientRect();
 
     const dropdown = document.createElement('div');
     dropdown.id = 'branch-dropdown';
     dropdown.style.cssText = `
       position:fixed; top:${rect.bottom + 4}px; left:${rect.left}px;
-      background:var(--sidebar); border:2px solid var(--border); border-radius:8px;
-      min-width:200px; max-height:280px; overflow-y:auto; z-index:500;
-      box-shadow:0 8px 24px rgba(0,0,0,.4);
+      background:var(--sidebar); border:1px solid var(--border); border-radius:8px;
+      width:320px; max-height:450px; display:flex; flex-direction:column; z-index:500;
+      box-shadow:0 8px 24px rgba(0,0,0,.5); overflow:hidden;
     `;
-
-    let html = `<div style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)">Switch branch</div>`;
-    branches.forEach(b => {
-      html += `<div class="branch-option" data-branch="${b}" style="padding:9px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;${b===current?'color:var(--accent)':''}">
-        <span style="color:var(--accent);width:14px">${b===current?'&#10003;':''}</span>
-        ${b}
-      </div>`;
-    });
-    dropdown.innerHTML = html;
-
-    dropdown.querySelectorAll('.branch-option').forEach(el => {
-      el.onclick = () => doCheckout(el.dataset.branch);
-      el.onmouseover = () => el.style.background = 'var(--hover)';
-      el.onmouseout = () => el.style.background = '';
-    });
-
+    
+    // Show loading state immediately
+    dropdown.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">Loading branches...</div>`;
     document.body.appendChild(dropdown);
+
+    // Fetch branches
+    const branches = await GetBranches();
+    if (!branches || !branches.length) {
+      dropdown.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No local repo open</div>`;
+      setTimeout(() => dropdown.remove(), 2000);
+      return;
+    }
+    
+    const current = $('#branch-name')?.textContent?.trim() || '';
+
+    let html = `
+      <div style="display:flex; border-bottom:1px solid var(--border); background:var(--sidebar);">
+        <div id="br-tab-branches" style="flex:1; text-align:center; padding:10px; font-size:12px; font-weight:600; color:var(--text); border-bottom:2px solid var(--accent); cursor:pointer;">Branches</div>
+        <div id="br-tab-prs" style="flex:1; text-align:center; padding:10px; font-size:12px; font-weight:600; color:var(--muted); cursor:pointer;">Pull requests</div>
+      </div>
+      <div id="br-search-bar" style="padding:10px; display:flex; align-items:center; border-bottom:1px solid var(--border); background:var(--sidebar);">
+        <div style="flex:1; position:relative; display:flex; align-items:center;">
+          <input type="text" id="branch-search-input" placeholder="Filter" style="width:100%; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:6px 8px 6px 30px; font-size:12px; color:var(--text); outline:none;">
+          <div style="position:absolute; left:10px; color:var(--muted); pointer-events:none; display:flex;">
+             <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"></path></svg>
+          </div>
+        </div>
+        <button style="margin-left:8px; background:var(--bg); border:1px solid var(--border); padding:5px 12px; border-radius:4px; font-size:12px; color:var(--text); cursor:pointer;">New branch</button>
+      </div>
+      <div id="branch-list-container" style="overflow-y:auto; flex:1;"></div>
+    `;
+    
+    dropdown.innerHTML = html;
+    
+    const listContainer = dropdown.querySelector('#branch-list-container');
+    const input = document.getElementById('branch-search-input');
+    let currentTab = 'branches';
+
+    function renderBranchesList(list) {
+      let res = `<div style="padding:8px 10px; font-size:11px; font-weight:600; color:var(--text); background:var(--header);">Default branch</div>`;
+      list.forEach(b => {
+        res += `<div class="branch-option" data-branch="${b}" style="padding:8px 14px; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text);">
+          <span style="color:var(--text); width:14px; flex-shrink:0; display:flex;">${b === current ? '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path></svg>' : ''}</span>
+          ${b}
+        </div>`;
+      });
+      listContainer.innerHTML = res;
+      listContainer.querySelectorAll('.branch-option').forEach(el => {
+        el.onclick = () => doCheckout(el.dataset.branch);
+        el.onmouseover = () => el.style.background = 'var(--hover)';
+        el.onmouseout = () => el.style.background = '';
+      });
+    }
+
+    renderBranchesList(branches);
+
+    if (input) {
+      input.focus();
+      input.oninput = (e) => {
+        if (currentTab !== 'branches') return;
+        const q = e.target.value.toLowerCase();
+        const filtered = branches.filter(b => b.toLowerCase().includes(q));
+        renderBranchesList(filtered);
+      };
+    }
+    
+    $('#br-tab-branches').onclick = () => {
+      currentTab = 'branches';
+      $('#br-tab-branches').style.borderBottom = '2px solid var(--accent)';
+      $('#br-tab-branches').style.color = 'var(--text)';
+      $('#br-tab-prs').style.borderBottom = 'none';
+      $('#br-tab-prs').style.color = 'var(--muted)';
+      $('#br-search-bar').style.display = 'flex';
+      renderBranchesList(branches);
+    };
+    
+    $('#br-tab-prs').onclick = async () => {
+      currentTab = 'prs';
+      $('#br-tab-prs').style.borderBottom = '2px solid var(--accent)';
+      $('#br-tab-prs').style.color = 'var(--text)';
+      $('#br-tab-branches').style.borderBottom = 'none';
+      $('#br-tab-branches').style.color = 'var(--muted)';
+      $('#br-search-bar').style.display = 'none';
+      
+      listContainer.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">Loading PRs...</div>';
+      const r = await GetPullRequests();
+      if (!r.ok) {
+        listContainer.innerHTML = `<div style="padding:20px;text-align:center;color:var(--red);font-size:12px;">${r.error}</div>`;
+        return;
+      }
+      const prs = r.prs || [];
+      if (!prs.length) {
+        listContainer.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">No open pull requests found.</div>`;
+        return;
+      }
+      
+      let html = '';
+      prs.forEach(pr => {
+        html += `<div class="pr-option" data-num="${pr.number}" data-ref="${pr.head.ref}" style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:4px;">
+          <div style="font-size:13px; color:var(--text); font-weight:600;">${escHtml(pr.title)}</div>
+          <div style="font-size:11px; color:var(--muted);">#${pr.number} opened by ${escHtml(pr.user.login)}</div>
+        </div>`;
+      });
+      listContainer.innerHTML = html;
+      listContainer.querySelectorAll('.pr-option').forEach(el => {
+        el.onclick = async () => {
+          dropdown.remove();
+          const n = parseInt(el.dataset.num);
+          const ref = el.dataset.ref;
+          toast('Fetching PR #' + n + '...');
+          const cres = await CheckoutPullRequest(n, ref);
+          if (cres.ok) {
+            toast('Checked out PR ' + ref);
+            refreshBranch();
+            refreshChanges();
+          } else {
+            toast('Failed to checkout PR: ' + cres.error, 'error');
+          }
+        };
+        el.onmouseover = () => el.style.background = 'var(--hover)';
+        el.onmouseout = () => el.style.background = '';
+      });
+    };
 
     setTimeout(() => {
       document.addEventListener('click', function close(e) {
-        if (!dropdown.contains(e.target) && e.target !== pill) {
+        if (dropdown && !dropdown.contains(e.target) && pill && !pill.contains(e.target)) {
           dropdown.remove();
           document.removeEventListener('click', close);
         }
       });
-    }, 10);
+    }, 100); // 100ms delay to be completely safe against bubbling
+
   } catch(e) {
     console.error('showBranchPicker error:', e);
+    toast('Picker Error: ' + e.message, 'error');
   }
 }
 
@@ -1001,12 +1399,93 @@ async function loadHistory() {
     }
     const panel = $('#panel-content');
     if (!panel) return;
-    panel.innerHTML = `<div class="history-list">${
-      (commits || []).map(c => `
-        <div class="history-item" data-sha="${c.sha}" style="cursor:pointer">
-          <div class="hi-msg">${escHtml(c.message)}</div>
-          <div class="hi-meta">${c.author} - <span style="color:var(--accent);font-family:monospace">${c.sha}</span> - ${c.date}</div>
-        </div>`).join('') || '<div class="no-changes">No commits</div>'
+    
+    // --- Compute Graph Lanes ---
+    let lanes = [];
+    commits.forEach(c => {
+      let l = lanes.indexOf(c.sha);
+      if (l === -1) { l = lanes.length; lanes.push(c.sha); }
+      c.laneIndex = l;
+      c.activeLanes = [...lanes]; // Lanes entering this commit from top
+      
+      if (c.parents && c.parents.length > 0) {
+        lanes[l] = c.parents[0];
+        for (let i = 1; i < c.parents.length; i++) {
+          if (!lanes.includes(c.parents[i])) lanes.push(c.parents[i]);
+        }
+      } else {
+        lanes.splice(l, 1);
+      }
+      c.nextLanes = [...lanes]; // Lanes exiting this commit to bottom
+    });
+
+    const colors = ['#1f6feb', '#56d364', '#d2a8ff', '#f78166', '#ffa657', '#3fb950'];
+
+    panel.innerHTML = `<div class="history-list" style="padding:10px 0; background:var(--bg); height:100%; overflow-y:auto;">${
+      (commits || []).map(c => {
+        const laneW = 12;
+        const svgW = Math.max(c.activeLanes.length, c.nextLanes.length, 1) * laneW + 16;
+        let svg = `<svg width="${svgW}" height="48" style="flex-shrink:0; margin-right:8px;">`;
+        
+        // Draw lines from previous commits (top) to this commit
+        c.activeLanes.forEach((sha, i) => {
+          const col = colors[i % colors.length];
+          const x = i * laneW + 10;
+          if (i === c.laneIndex) {
+            svg += `<path d="M ${x} 0 L ${x} 24" stroke="${col}" stroke-width="2" fill="none"/>`;
+          } else {
+            // It passes through, find where it goes in nextLanes
+            const nextIdx = c.nextLanes.indexOf(sha);
+            if (nextIdx !== -1) {
+              const nx = nextIdx * laneW + 10;
+              if (nx === x) {
+                svg += `<path d="M ${x} 0 L ${x} 48" stroke="${col}" stroke-width="2" fill="none"/>`;
+              } else {
+                svg += `<path d="M ${x} 0 C ${x} 24, ${nx} 24, ${nx} 48" stroke="${col}" stroke-width="2" fill="none"/>`;
+              }
+            }
+          }
+        });
+
+        // Draw lines from this commit to parents (bottom)
+        if (c.parents) {
+          c.parents.forEach((p, pIdx) => {
+            const nextIdx = c.nextLanes.indexOf(p);
+            if (nextIdx !== -1) {
+              const nx = nextIdx * laneW + 10;
+              const x = c.laneIndex * laneW + 10;
+              const col = colors[nextIdx % colors.length];
+              if (nx === x) {
+                svg += `<path d="M ${x} 24 L ${x} 48" stroke="${col}" stroke-width="2" fill="none"/>`;
+              } else {
+                svg += `<path d="M ${x} 24 C ${x} 36, ${nx} 36, ${nx} 48" stroke="${col}" stroke-width="2" fill="none"/>`;
+              }
+            }
+          });
+        }
+        
+        // Draw the commit dot
+        const cx = c.laneIndex * laneW + 10;
+        const dotCol = colors[c.laneIndex % colors.length];
+        svg += `<circle cx="${cx}" cy="24" r="4" fill="var(--bg)" stroke="${dotCol}" stroke-width="2"/>`;
+        svg += `</svg>`;
+
+        const avatar = c.avatarURL || `https://www.gravatar.com/avatar/?d=identicon`;
+
+        return `
+        <div class="history-item" data-sha="${c.sha}" style="cursor:pointer; display:flex; align-items:flex-start; padding:4px 16px; min-height:48px;">
+          ${svg}
+          <img src="${avatar}" style="width:24px; height:24px; border-radius:50%; margin-top:12px; margin-right:12px; flex-shrink:0;">
+          <div style="display:flex; flex-direction:column; justify-content:center; flex:1; min-width:0; padding-top:6px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+            <div style="font-weight:600; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(c.message)}</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">
+              <span style="font-weight:500;">${c.author}</span> committed &bull; 
+              <span style="font-family:monospace; color:var(--text);">${c.sha}</span> &bull; 
+              ${c.date}
+            </div>
+          </div>
+        </div>`;
+      }).join('') || '<div style="padding:20px; text-align:center; color:var(--muted);">No commits</div>'
     }</div>`;
 
     panel.querySelectorAll('.history-item').forEach(el => {
@@ -1091,6 +1570,17 @@ async function doFetch() {
   } catch(e) {
     console.error('doFetch error:', e);
     if (btn) { btn.innerHTML = `${icon('cloud')} Fetch origin`; btn.disabled = false; }
+  }
+}
+
+async function doPush() {
+  const btn = $('#push-btn');
+  if (btn) { btn.textContent = 'Pushing...'; btn.disabled = true; }
+  try {
+    await Push();
+  } catch(e) {
+    console.error('doPush error:', e);
+    if (btn) { btn.innerHTML = `${icon('cloud')} Push origin`; btn.disabled = false; }
   }
 }
 
@@ -1249,21 +1739,18 @@ function updateCreatePath() {
 async function doCreate() {
   const name = $('#cr-name')?.value?.trim();
   const path = $('#cr-path')?.value?.trim();
+  const desc = $('#cr-desc') ? $('#cr-desc').value.trim() : '';
+  const isPrivate = $('#cr-private') ? $('#cr-private').checked : false;
+  const withReadme = $('#cr-readme') ? $('#cr-readme').checked : true;
+  const gitignore = $('#cr-gitignore') ? $('#cr-gitignore').value : 'None';
+  const branch = $('#cr-branch') ? $('#cr-branch').value.trim() || 'main' : 'main';
   if (!name) { $('#cr-error').textContent = 'Name is required'; return; }
   if (!path) { $('#cr-error').textContent = 'Path is required'; return; }
   closeModal();
   crPathEdited = false;
   crBasePath = '';
   try {
-    await CreateRepo(
-      name,
-      $('#cr-desc') ? $('#cr-desc').value.trim() : '',
-      $('#cr-private') ? $('#cr-private').checked : false,
-      $('#cr-readme') ? $('#cr-readme').checked : true,
-      $('#cr-gitignore') ? $('#cr-gitignore').value : 'None',
-      $('#cr-branch') ? $('#cr-branch').value.trim() || 'main' : 'main',
-      path
-    );
+    await CreateRepo(name, desc, isPrivate, withReadme, gitignore, branch, path);
   } catch(e) {
     console.error('doCreate error:', e);
   }
@@ -1302,13 +1789,37 @@ async function doDelete() {
     return;
   }
   closeModal();
+
+  const repoName = state.currentRepo.name;
+  await StopWatcher();
+  showScreen('main');
+
+  renderRepoList(state.repos, false);
+
+  const item = $(`.repo-item[data-name="${repoName}"]`);
+  if (item) {
+    item.classList.add('deleting');
+    await new Promise(r => setTimeout(r, 850));
+    item.style.transition = 'height 0.3s ease, margin 0.3s ease, padding 0.3s ease';
+    const h = item.offsetHeight;
+    item.style.height = h + 'px';
+    item.offsetHeight;
+    item.style.height = '0';
+    item.style.margin = '0';
+    item.style.paddingTop = '0';
+    item.style.paddingBottom = '0';
+    item.style.overflow = 'hidden';
+    await new Promise(r => setTimeout(r, 300));
+    item.remove();
+  }
+
+  state.repos = state.repos.filter(r => r.name !== repoName);
+  updateRepoStatus();
+
   try {
-    const res = await DeleteRepo(state.user, state.currentRepo.name);
+    const res = await DeleteRepo(state.user, repoName);
     if (res.ok) {
-      toast(`Deleted ${state.currentRepo.name}`);
-      await StopWatcher();
-      showScreen('main');
-      renderMain();
+      toast(`Deleted ${repoName}`);
     } else {
       toast(`${res.error}`, 'error');
     }
@@ -1317,10 +1828,24 @@ async function doDelete() {
   }
 }
 
+function updateRepoStatus() {
+  const status = $('#sidebar-status');
+  if (status) status.textContent = `${state.repos.length} repositories`;
+}
+
 // ── INIT ───────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-  EventsOn('onPushSuccess', () => { toast('Pushed to GitHub'); refreshBranch(); });
-  EventsOn('onPushError', (e) => { toast(`Push failed: ${e}`, 'error'); });
+  EventsOn('onPushSuccess', () => {
+    const btn = $('#push-btn');
+    if (btn) { btn.innerHTML = `${icon('cloud')} Push origin`; btn.disabled = false; }
+    toast('Pushed to GitHub');
+    refreshBranch();
+  });
+  EventsOn('onPushError', (e) => {
+    const btn = $('#push-btn');
+    if (btn) { btn.innerHTML = `${icon('cloud')} Push origin`; btn.disabled = false; }
+    toast(`Push failed: ${e}`, 'error');
+  });
   EventsOn('onFetchSuccess', () => {
     const btn = $('#fetch-btn');
     if (btn) { btn.innerHTML = `${icon('cloud')} Fetch origin`; btn.disabled = false; }
@@ -1335,7 +1860,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   EventsOn('onFileChanged', () => { refreshChanges(); });
   EventsOn('onCloneSuccess', (dest) => { closeModal(); toast(`Cloned to ${dest}`); });
   EventsOn('onCloneError', (e) => { toast(`${e}`, 'error'); const pb = $('.progress-bar'); if(pb) pb.classList.remove('visible'); });
-  EventsOn('onCreateRepoSuccess', (name) => { toast(`${name} published to GitHub`); showScreen('main'); renderMain(); });
+  EventsOn('onCreateRepoSuccess', async (name) => {
+    toast(`${name} published to GitHub`);
+    closeModal();
+    showScreen('main');
+    await loadRepos();
+    const item = $(`.repo-item[data-name="${name}"]`);
+    if (item) item.classList.add('adding');
+  });
   EventsOn('onCreateRepoError', (e) => { toast(`${e}`, 'error'); });
 
   EventsOn('onUpdateProgress', (data) => {
@@ -1373,6 +1905,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Init
   loadFontSize();
+  try { state.theme = localStorage.getItem('gitdesktop-theme') || 'system'; } catch(e) {}
+  applyTheme();
+
   $('#screen-login').innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;height:100vh;background:var(--bg)">
       <img src="${githubLogo}" style="width:80px;height:80px">
@@ -1400,3 +1935,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   renderLogin();
 });
+
+console.log('CACHE_BUST_2026_07_31_22_38');

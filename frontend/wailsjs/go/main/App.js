@@ -10,6 +10,10 @@ export function CheckoutBranch(arg1) {
   return window['go']['main']['App']['CheckoutBranch'](arg1);
 }
 
+export function CheckoutPullRequest(arg1, arg2) {
+  return window['go']['main']['App']['CheckoutPullRequest'](arg1, arg2);
+}
+
 export function CloneRepo(arg1, arg2) {
   return window['go']['main']['App']['CloneRepo'](arg1, arg2);
 }
@@ -58,6 +62,10 @@ export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
 
+export function GetConflictBlocks(arg1) {
+  return window['go']['main']['App']['GetConflictBlocks'](arg1);
+}
+
 export function GetCurrentUser() {
   return window['go']['main']['App']['GetCurrentUser']();
 }
@@ -88,6 +96,10 @@ export function GetLastClonePath() {
 
 export function GetLocalPath() {
   return window['go']['main']['App']['GetLocalPath']();
+}
+
+export function GetPullRequests() {
+  return window['go']['main']['App']['GetPullRequests']();
 }
 
 export function GetReadme() {
@@ -126,6 +138,10 @@ export function GetSavedToken() {
   return window['go']['main']['App']['GetSavedToken']();
 }
 
+export function GetStashes() {
+  return window['go']['main']['App']['GetStashes']();
+}
+
 export function GetVersion() {
   return window['go']['main']['App']['GetVersion']();
 }
@@ -162,6 +178,10 @@ export function Push() {
   return window['go']['main']['App']['Push']();
 }
 
+export function ResolveConflict(arg1, arg2) {
+  return window['go']['main']['App']['ResolveConflict'](arg1, arg2);
+}
+
 export function SaveConfigKey(arg1, arg2) {
   return window['go']['main']['App']['SaveConfigKey'](arg1, arg2);
 }
@@ -174,6 +194,22 @@ export function StartWatcher() {
   return window['go']['main']['App']['StartWatcher']();
 }
 
+export function Stash() {
+  return window['go']['main']['App']['Stash']();
+}
+
+export function StashDrop(arg1) {
+  return window['go']['main']['App']['StashDrop'](arg1);
+}
+
+export function StashPop(arg1) {
+  return window['go']['main']['App']['StashPop'](arg1);
+}
+
 export function StopWatcher() {
   return window['go']['main']['App']['StopWatcher']();
+}
+
+export function WriteFile(arg1, arg2) {
+  return window['go']['main']['App']['WriteFile'](arg1, arg2);
 }

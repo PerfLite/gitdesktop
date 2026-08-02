@@ -21,10 +21,13 @@ import (
 type Config struct {
 	Token          string                    `json:"token"`
 	AvatarURL      string                    `json:"avatar_url"`
+	UserName       string                    `json:"user_name"`
+	UserEmail      string                    `json:"user_email"`
 	ReposCache     []map[string]interface{}  `json:"repos_cache"`
 	RepoPaths      map[string]string         `json:"repo_paths"`
 	LastClonePath  string                    `json:"last_clone_path"`
 	LastCreatePath string                    `json:"last_create_path"`
+	Theme          string                    `json:"theme"`
 }
 
 type App struct {
@@ -32,6 +35,8 @@ type App struct {
 	client        *GitHubClient
 	config        Config
 	currentUser   string
+	userName      string
+	userEmail     string
 	currentRepo   map[string]interface{}
 	localRepo     *GitRepo
 	localPath     string
@@ -50,6 +55,35 @@ func (a *App) startup(ctx context.Context) {
 	a.loadConfig()
 	if a.config.Token != "" {
 		a.client.SetToken(a.config.Token)
+		if u, err := a.client.GetCurrentUser(); err == nil {
+			if login, ok := u["login"].(string); ok {
+				a.currentUser = login
+			}
+			if name, ok := u["name"].(string); ok && name != "" {
+				a.userName = name
+			} else if login, ok := u["login"].(string); ok {
+				a.userName = login
+			}
+			if email, ok := u["email"].(string); ok && email != "" {
+				a.userEmail = email
+			} else if login, ok := u["login"].(string); ok {
+				a.userEmail = login + "@users.noreply.github.com"
+			}
+			a.config.UserName = a.userName
+			a.config.UserEmail = a.userEmail
+			a.saveConfig()
+		} else {
+			ok, user := a.client.Authenticate()
+			if ok {
+				a.currentUser = user
+				a.userName = user
+				a.userEmail = user + "@users.noreply.github.com"
+			}
+		}
+		if a.userName == "" && a.config.UserName != "" {
+			a.userName = a.config.UserName
+			a.userEmail = a.config.UserEmail
+		}
 	}
 
 	// Защита "последней линии" от петли перезапуска: считаем, сколько раз
@@ -169,7 +203,22 @@ func (a *App) Login(token string) LoginResult {
 		if avatar, ok := u["avatar_url"].(string); ok {
 			a.config.AvatarURL = avatar
 		}
+		if name, ok := u["name"].(string); ok && name != "" {
+			a.userName = name
+		} else {
+			a.userName = user
+		}
+		if email, ok := u["email"].(string); ok && email != "" {
+			a.userEmail = email
+		} else {
+			a.userEmail = user + "@users.noreply.github.com"
+		}
+	} else {
+		a.userName = user
+		a.userEmail = user + "@users.noreply.github.com"
 	}
+	a.config.UserName = a.userName
+	a.config.UserEmail = a.userEmail
 	a.saveConfig()
 
 	return LoginResult{OK: true, User: user, AvatarURL: a.config.AvatarURL}
@@ -177,9 +226,13 @@ func (a *App) Login(token string) LoginResult {
 
 func (a *App) Logout() map[string]interface{} {
 	a.currentUser = ""
+	a.userName = ""
+	a.userEmail = ""
 	a.localRepo = nil
 	a.localPath = ""
 	a.config.Token = ""
+	a.config.UserName = ""
+	a.config.UserEmail = ""
 	a.saveConfig()
 	return map[string]interface{}{"ok": true}
 }
@@ -248,9 +301,9 @@ func (a *App) CreateRepo(name, description string, private, autoInit bool, gitig
 
 		var gitRepo *GitRepo
 		if IsGitRepo(repoPath) {
-			gitRepo, _ = OpenGitRepo(repoPath)
+			gitRepo, _ = OpenGitRepo(repoPath, a.userName, a.userEmail)
 		} else {
-			gitRepo, err = InitGitRepo(repoPath, branch)
+			gitRepo, err = InitGitRepo(repoPath, branch, a.userName, a.userEmail)
 			if err != nil {
 				a.emitEvent("onCreateRepoError", err.Error())
 				return
@@ -277,11 +330,17 @@ func (a *App) CreateRepo(name, description string, private, autoInit bool, gitig
 		gitRepo.run("add", "-A")
 		status, _ := gitRepo.Status()
 		if strings.TrimSpace(status) != "" {
-			gitRepo.Commit("Initial commit", "")
+			if err := gitRepo.Commit("Initial commit", ""); err != nil {
+				a.emitEvent("onCreateRepoError", "Commit failed: "+err.Error())
+				return
+			}
 		} else if !gitRepo.headValid() {
 			os.WriteFile(filepath.Join(repoPath, "README.md"), []byte(fmt.Sprintf("# %s\n", name)), 0644)
 			gitRepo.run("add", "-A")
-			gitRepo.Commit("Initial commit", "")
+			if err := gitRepo.Commit("Initial commit", ""); err != nil {
+				a.emitEvent("onCreateRepoError", "Commit failed: "+err.Error())
+				return
+			}
 		}
 
 		token := a.config.Token
@@ -293,12 +352,18 @@ func (a *App) CreateRepo(name, description string, private, autoInit bool, gitig
 		gitRepo.AddRemote("origin", pushURL)
 		if gitRepo.headValid() {
 			branchName, _, _ := gitRepo.BranchInfo()
-			gitRepo.Push("", branchName)
+			pushOutput, pushErr := gitRepo.Push("", branchName)
+			if pushErr != nil {
+				a.emitEvent("onCreateRepoError", "Push failed: "+pushErr.Error()+" "+pushOutput)
+				return
+			}
 		}
 		gitRepo.SetRemoteURL("origin", cloneURL)
 
 		a.config.RepoPaths[name] = repoPath
 		a.config.LastCreatePath = filepath.Dir(strings.TrimRight(repoPath, "/"))
+		a.localRepo = gitRepo
+		a.localPath = repoPath
 		a.saveConfig()
 
 		a.emitEvent("onCreateRepoSuccess", name)
@@ -337,7 +402,7 @@ type OpenRepoResult struct {
 }
 
 func (a *App) OpenLocalRepo(path string) OpenRepoResult {
-	repo, err := OpenGitRepo(path)
+	repo, err := OpenGitRepo(path, a.userName, a.userEmail)
 	if err != nil {
 		return OpenRepoResult{OK: false, Error: err.Error()}
 	}
@@ -426,15 +491,7 @@ func (a *App) Commit(message, description string) CommitResult {
 	}
 
 	go func() {
-		originURL, _ := a.localRepo.run("remote", "get-url", "origin")
-		token := a.config.Token
-		pushURL := originURL
-		if token != "" && strings.HasPrefix(originURL, "https://") {
-			pushURL = strings.Replace(originURL, "https://", "https://"+token+"@", 1)
-		}
-		branch, _, _ := a.localRepo.BranchInfo()
-		err := a.localRepo.Push(pushURL, branch)
-		if err != nil {
+		if err := a.doPush(); err != nil {
 			a.emitEvent("onPushError", err.Error())
 			return
 		}
@@ -450,21 +507,40 @@ type PushResult struct {
 	Started bool   `json:"started,omitempty"`
 }
 
+func (a *App) doPush() error {
+	originURL, err := a.localRepo.run("remote", "get-url", "origin")
+	if err != nil || strings.TrimSpace(originURL) == "" {
+		if err == nil {
+			err = fmt.Errorf("empty remote URL")
+		}
+		return fmt.Errorf("cannot get remote URL: %w", err)
+	}
+	originURL = strings.TrimSpace(originURL)
+	token := a.config.Token
+	if token != "" && strings.HasPrefix(originURL, "https://") {
+		pushURL := strings.Replace(originURL, "https://", "https://"+token+"@", 1)
+		a.localRepo.SetRemoteURL("origin", pushURL)
+		defer a.localRepo.SetRemoteURL("origin", originURL)
+	}
+	branch, _, _ := a.localRepo.BranchInfo()
+	branch = strings.TrimSpace(branch)
+	if branch == "" || branch == "unknown" {
+		return fmt.Errorf("cannot determine current branch")
+	}
+	output, err := a.localRepo.Push("", branch)
+	if err != nil {
+		return fmt.Errorf("%s: %w", output, err)
+	}
+	return nil
+}
+
 func (a *App) Push() PushResult {
 	if a.localRepo == nil {
 		return PushResult{OK: false, Error: "No local repo"}
 	}
 
 	go func() {
-		originURL, _ := a.localRepo.run("remote", "get-url", "origin")
-		token := a.config.Token
-		pushURL := originURL
-		if token != "" && strings.HasPrefix(originURL, "https://") {
-			pushURL = strings.Replace(originURL, "https://", "https://"+token+"@", 1)
-		}
-		branch, _, _ := a.localRepo.BranchInfo()
-		err := a.localRepo.Push(pushURL, branch)
-		if err != nil {
+		if err := a.doPush(); err != nil {
 			a.emitEvent("onPushError", err.Error())
 			return
 		}
@@ -576,12 +652,18 @@ func (a *App) OpenInFiles(path string) map[string]interface{} {
 	if path == "" || !pathExists(path) {
 		return map[string]interface{}{"ok": false, "error": "Path not found"}
 	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
 	go func() {
 		switch goruntime.GOOS {
 		case "darwin":
-			exec.Command("open", path).Start()
+			exec.Command("open", absPath).Start()
+		case "windows":
+			exec.Command("explorer", absPath).Start()
 		default:
-			exec.Command("xdg-open", path).Start()
+			exec.Command("xdg-open", absPath).Start()
 		}
 	}()
 	return map[string]interface{}{"ok": true}
@@ -593,6 +675,8 @@ func (a *App) GetLocalPath() string {
 
 func (a *App) SetCurrentRepo(repo map[string]interface{}) {
 	a.currentRepo = repo
+	a.localRepo = nil
+	a.localPath = ""
 }
 
 func (a *App) GetConfig() map[string]interface{} {
@@ -602,6 +686,7 @@ func (a *App) GetConfig() map[string]interface{} {
 		"last_clone_path": a.config.LastClonePath,
 		"last_create_path": a.config.LastCreatePath,
 		"repo_paths":      a.config.RepoPaths,
+		"theme":           a.config.Theme,
 	}
 }
 
@@ -614,6 +699,18 @@ func (a *App) SaveConfigKey(key string, value interface{}) map[string]interface{
 	case "last_create_path":
 		if v, ok := value.(string); ok {
 			a.config.LastCreatePath = v
+		}
+	case "repo_paths":
+		if pathMap, ok := value.(map[string]interface{}); ok {
+			for k, v := range pathMap {
+				if strVal, ok := v.(string); ok {
+					a.config.RepoPaths[k] = strVal
+				}
+			}
+		}
+	case "theme":
+		if s, ok := value.(string); ok {
+			a.config.Theme = s
 		}
 	}
 	a.saveConfig()
@@ -638,7 +735,7 @@ func (a *App) StartWatcher() map[string]interface{} {
 			}
 
 			if a.localPath != "" && pathExists(a.localPath) {
-				cmd := exec.Command("git", "-C", a.localPath, "status", "--porcelain")
+				cmd := hiddenCmd("git", "-C", a.localPath, "status", "--porcelain")
 				if out, err := cmd.CombinedOutput(); err == nil {
 					newStatus := string(out)
 					if lastStatus != "" && newStatus != lastStatus {
@@ -751,15 +848,21 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 		}
 		// Иначе (deb/портативный бинарник) — сырой исполняемый файл.
 		if downloadURL == "" {
-			// 1. Точное имя сырого бинарника — приоритет.
 			for _, asset := range release.Assets {
-				if asset.Name == "gitdesktop" || asset.Name == "gitdesktop-x86_64" {
-					downloadURL = asset.BrowserDownloadURL
-					break
+				if goruntime.GOOS == "windows" {
+					if asset.Name == "gitdesktop.exe" || strings.HasSuffix(asset.Name, ".exe") {
+						downloadURL = asset.BrowserDownloadURL
+						break
+					}
+				} else {
+					if asset.Name == "gitdesktop" || asset.Name == "gitdesktop-x86_64" {
+						downloadURL = asset.BrowserDownloadURL
+						break
+					}
 				}
 			}
-			// 2. Linux x86_64 бинарник без расширения архива.
-			if downloadURL == "" {
+			// 2. Linux x86_64
+			if downloadURL == "" && goruntime.GOOS != "windows" {
 				for _, asset := range release.Assets {
 					if isArchive(asset.Name) {
 						continue
@@ -770,7 +873,7 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 					}
 				}
 			}
-			// 3. Любой не-архивный ассет.
+			// 3. Fallback
 			if downloadURL == "" {
 				for _, asset := range release.Assets {
 					if !isArchive(asset.Name) {
@@ -843,10 +946,14 @@ func (a *App) DownloadUpdate() map[string]interface{} {
 		os.Chmod(tmpPath, 0755)
 
 		// Запущено из AppImage — перезаписываем сам .AppImage на месте.
-		// Иначе ставим портативный бинарник в ~/.local/bin/gitdesktop.
+		// Иначе ставим портативный бинарник.
 		installPath := appImagePath
 		if !updatingAppImage || appImagePath == "" {
-			installPath = filepath.Join(home, ".local", "bin", "gitdesktop")
+			installPath, err = os.Executable()
+			if err != nil {
+				a.emitEvent("onUpdateError", "Failed to get executable path: "+err.Error())
+				return
+			}
 		}
 
 		if err := installUpdate(tmpPath, installPath); err != nil {
@@ -903,7 +1010,18 @@ func installUpdate(tmpPath, installPath string) error {
 		os.Remove(staged)
 		return err
 	}
+	if goruntime.GOOS == "windows" {
+		oldPath := installPath + ".old"
+		os.Remove(oldPath)
+		if err := os.Rename(installPath, oldPath); err != nil {
+			os.Remove(staged)
+			return err
+		}
+	}
 	if err := os.Rename(staged, installPath); err != nil {
+		if goruntime.GOOS == "windows" {
+			os.Rename(installPath+".old", installPath)
+		}
 		os.Remove(staged)
 		return err
 	}
@@ -1023,7 +1141,16 @@ func (a *App) pollDeviceCode(deviceCode string, interval int) {
 }
 
 func (a *App) OpenURL(url string) {
-	go exec.Command("xdg-open", url).Start()
+	go func() {
+		switch goruntime.GOOS {
+		case "darwin":
+			exec.Command("open", url).Start()
+		case "windows":
+			exec.Command("cmd", "/c", "start", url).Start()
+		default:
+			exec.Command("xdg-open", url).Start()
+		}
+	}()
 }
 
 // ── FILE BROWSER ──────────────────────────────────────────────────────────
@@ -1054,6 +1181,16 @@ func (a *App) GetFileContent(fpath string) FileContentResult {
 		return FileContentResult{OK: false, Error: err.Error()}
 	}
 	return FileContentResult{OK: true, Content: content}
+}
+
+func (a *App) WriteFile(fpath, content string) map[string]interface{} {
+	if a.localRepo == nil {
+		return map[string]interface{}{"ok": false, "error": "No local repo"}
+	}
+	if err := a.localRepo.WriteFile(fpath, content); err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	return map[string]interface{}{"ok": true}
 }
 
 func (a *App) GetReadme() string {
@@ -1150,11 +1287,161 @@ func (a *App) GetRemoteHistory() []CommitInfo {
 			date = date[:16]
 		}
 		commits = append(commits, CommitInfo{
-			SHA:     sha,
-			Message: c.Message,
-			Author:  c.Author,
-			Date:    date,
+			SHA:       sha,
+			Message:   c.Message,
+			Author:    c.Author,
+			AvatarURL: "https://github.com/" + c.Author + ".png",
+			Date:      date,
 		})
 	}
 	return commits
+}
+func (a *App) GetStashes() []StashInfo {
+	if a.localRepo == nil {
+		return nil
+	}
+	s, _ := a.localRepo.GetStashes()
+	return s
+}
+
+func (a *App) Stash() map[string]interface{} {
+	if a.localRepo == nil {
+		return map[string]interface{}{"ok": false, "error": "No local repo"}
+	}
+	err := a.localRepo.Stash()
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	return map[string]interface{}{"ok": true}
+}
+
+func (a *App) StashPop(index string) map[string]interface{} {
+	if a.localRepo == nil {
+		return map[string]interface{}{"ok": false, "error": "No local repo"}
+	}
+	err := a.localRepo.StashPop(index)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	return map[string]interface{}{"ok": true}
+}
+
+func (a *App) StashDrop(index string) map[string]interface{} {
+	if a.localRepo == nil {
+		return map[string]interface{}{"ok": false, "error": "No local repo"}
+	}
+	err := a.localRepo.StashDrop(index)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	return map[string]interface{}{"ok": true}
+}
+
+type ConflictBlockResult struct {
+	OK     bool            `json:"ok"`
+	Blocks []ConflictBlock `json:"blocks,omitempty"`
+	Error  string          `json:"error,omitempty"`
+}
+
+func (a *App) GetConflictBlocks(fpath string) ConflictBlockResult {
+	if a.localRepo == nil {
+		return ConflictBlockResult{OK: false, Error: "No local repo"}
+	}
+	blocks, err := a.localRepo.GetConflictBlocks(fpath)
+	if err != nil {
+		return ConflictBlockResult{OK: false, Error: err.Error()}
+	}
+	return ConflictBlockResult{OK: true, Blocks: blocks}
+}
+
+func (a *App) ResolveConflict(fpath string, content string) map[string]interface{} {
+	if a.localRepo == nil {
+		return map[string]interface{}{"ok": false, "error": "No local repo"}
+	}
+	err := a.localRepo.ResolveConflict(fpath, content)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	return map[string]interface{}{"ok": true}
+}
+
+type PullRequest struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	User   struct {
+		Login string `json:"login"`
+	} `json:"user"`
+	Head struct {
+		Ref string `json:"ref"`
+	} `json:"head"`
+}
+
+func parseOwnerRepo(url string) (string, string) {
+	url = strings.TrimSuffix(url, ".git")
+	if strings.HasPrefix(url, "http") {
+		parts := strings.Split(url, "/")
+		if len(parts) >= 2 {
+			return parts[len(parts)-2], parts[len(parts)-1]
+		}
+	} else if strings.Contains(url, ":") {
+		parts := strings.Split(url, ":")
+		path := parts[len(parts)-1]
+		pathParts := strings.Split(path, "/")
+		if len(pathParts) == 2 {
+			return pathParts[0], pathParts[1]
+		}
+	}
+	return "", ""
+}
+
+func (a *App) GetPullRequests() map[string]interface{} {
+	if a.localRepo == nil {
+		return map[string]interface{}{"ok": false, "error": "No local repo"}
+	}
+	url, err := a.localRepo.GetRemoteURL("origin")
+	if err != nil || url == "" {
+		return map[string]interface{}{"ok": false, "error": "No remote origin found"}
+	}
+	
+	owner, repo := parseOwnerRepo(url)
+	if owner == "" || repo == "" {
+		return map[string]interface{}{"ok": false, "error": "Could not parse GitHub owner/repo from remote URL"}
+	}
+
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls?state=open", owner, repo)
+	
+	req, _ := http.NewRequest("GET", apiURL, nil)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	if a.config.Token != "" {
+		req.Header.Set("Authorization", "token "+a.config.Token)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return map[string]interface{}{"ok": false, "error": fmt.Sprintf("GitHub API error: %s", resp.Status)}
+	}
+
+	var prs []PullRequest
+	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil {
+		return map[string]interface{}{"ok": false, "error": "Failed to parse PRs"}
+	}
+
+	return map[string]interface{}{"ok": true, "prs": prs}
+}
+
+func (a *App) CheckoutPullRequest(prNumber int, branchName string) map[string]interface{} {
+	if a.localRepo == nil {
+		return map[string]interface{}{"ok": false, "error": "No local repo"}
+	}
+	err := a.localRepo.CheckoutPullRequest(prNumber, branchName)
+	if err != nil {
+		return map[string]interface{}{"ok": false, "error": err.Error()}
+	}
+	return map[string]interface{}{"ok": true}
 }

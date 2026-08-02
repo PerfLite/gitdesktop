@@ -6,6 +6,8 @@ export function CheckForUpdates():Promise<main.UpdateInfo>;
 
 export function CheckoutBranch(arg1:string):Promise<main.CheckoutResult>;
 
+export function CheckoutPullRequest(arg1:number,arg2:string):Promise<Record<string, any>>;
+
 export function CloneRepo(arg1:string,arg2:string):Promise<main.CloneResult>;
 
 export function Commit(arg1:string,arg2:string):Promise<main.CommitResult>;
@@ -30,6 +32,8 @@ export function GetCommitDiff(arg1:string):Promise<main.CommitDiffResult>;
 
 export function GetConfig():Promise<Record<string, any>>;
 
+export function GetConflictBlocks(arg1:string):Promise<main.ConflictBlockResult>;
+
 export function GetCurrentUser():Promise<string>;
 
 export function GetDiff(arg1:string):Promise<main.DiffResult>;
@@ -45,6 +49,8 @@ export function GetHistory():Promise<Array<main.CommitInfo>>;
 export function GetLastClonePath():Promise<string>;
 
 export function GetLocalPath():Promise<string>;
+
+export function GetPullRequests():Promise<Record<string, any>>;
 
 export function GetReadme():Promise<string>;
 
@@ -64,6 +70,8 @@ export function GetSavedRepoPath(arg1:string):Promise<string>;
 
 export function GetSavedToken():Promise<string>;
 
+export function GetStashes():Promise<Array<main.StashInfo>>;
+
 export function GetVersion():Promise<string>;
 
 export function Login(arg1:string):Promise<main.LoginResult>;
@@ -82,10 +90,20 @@ export function OpenURL(arg1:string):Promise<void>;
 
 export function Push():Promise<main.PushResult>;
 
+export function ResolveConflict(arg1:string,arg2:string):Promise<Record<string, any>>;
+
 export function SaveConfigKey(arg1:string,arg2:any):Promise<Record<string, any>>;
 
 export function SetCurrentRepo(arg1:Record<string, any>):Promise<void>;
 
 export function StartWatcher():Promise<Record<string, any>>;
 
+export function Stash():Promise<Record<string, any>>;
+
+export function StashDrop(arg1:string):Promise<Record<string, any>>;
+
+export function StashPop(arg1:string):Promise<Record<string, any>>;
+
 export function StopWatcher():Promise<Record<string, any>>;
+
+export function WriteFile(arg1:string,arg2:string):Promise<Record<string, any>>;
