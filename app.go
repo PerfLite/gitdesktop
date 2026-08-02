@@ -101,6 +101,11 @@ func (a *App) startup(ctx context.Context) {
 
 	// Запущено из AppImage — оно самоуправляемое (обновляется на месте),
 	// не перенаправляем запуск в ~/.local/bin/gitdesktop.
+	// If we're on Windows, the updater is handled without ~/.local/bin/gitdesktop
+	if goruntime.GOOS == "windows" {
+		return
+	}
+
 	if os.Getenv("APPIMAGE") != "" {
 		return
 	}
