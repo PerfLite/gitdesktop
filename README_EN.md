@@ -1,20 +1,22 @@
 # GitDesktop
 
-A lightweight native desktop client for GitHub, built with [Wails](https://wails.io/) (Go backend + a plain JavaScript web frontend). The goal is a simple local UI for everyday GitHub and git work without dropping to the terminal.
+A lightweight cross-platform desktop client for GitHub (Windows/Linux), built with [Wails](https://wails.io/) (Go backend + a plain JavaScript web frontend). The goal is a simple local UI for everyday GitHub and git work without dropping to the terminal.
 
 ## Features
 
 - Browse and manage your GitHub repositories (via OAuth device flow).
 - Local git operations: change status, commit history, file tree, README.
 - Clone and create repositories.
-- Automatic updates from GitHub Releases:
-  - `.deb` installs to the portable binary at `~/.local/bin/gitdesktop`;
-  - `.AppImage` updates in place (the file overwrites itself);
-  - when no package is present, a raw built binary is used.
+- Branch management: checkout, create, pull, push, stash.
+- GitHub Integration: Pull Requests viewer.
+- Intuitive merge conflict resolution.
+- Light and dark themes support.
+- Automatic updates from GitHub Releases (supports Windows .exe and Linux AppImage/.deb).
 
 ## Requirements
 
-Both `.deb` and `.AppImage` require the system library `libwebkit2gtk-4.1-0`:
+- **Windows**: Windows 10/11 with `git` installed.
+- **Linux**: Both `.deb` and `.AppImage` require the system library `libwebkit2gtk-4.1-0` and `git`:
 
 ```bash
 sudo apt install libwebkit2gtk-4.1-0 git
@@ -55,7 +57,7 @@ make release   # publish artifacts to GitHub Releases (requires `gh auth login`)
 
 ## Auto-update
 
-On startup the app compares its version (from `VERSION`) with the latest GitHub release tag. If a newer version is available it is downloaded and installed automatically: in place for AppImage, or to `~/.local/bin/gitdesktop` for deb/portable builds.
+On startup the app compares its version (from `VERSION`) with the latest GitHub release tag. If a newer version is available, it is downloaded and installed automatically, replacing the existing executable in-place seamlessly (including .exe on Windows).
 
 ## License
 

@@ -57,6 +57,7 @@ function closeModal() {
 }
 
 const icons = {
+  file:   `<svg viewBox="0 0 16 16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688a.02.02 0 0 0-.011-.013l-2.914-2.914a.02.02 0 0 0-.013-.011Z"/></svg>`,
   hub:    `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>`,
   book:   `<svg viewBox="0 0 16 16"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8V1.5Z"/></svg>`,
   lock:   `<svg viewBox="0 0 16 16"><path d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 6V4a2.5 2.5 0 0 0-5 0v2Z"/></svg>`,
@@ -109,11 +110,11 @@ function langBadge(lang) {
   const color = langColors[lang] || '#8b949e';
   const cls = langIcons[lang];
   if (cls) {
-    return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)">
+    return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);margin-top:2px">
       <i class="${cls}" style="font-size:13px;color:${color};flex-shrink:0"></i>${lang}
     </span>`;
   }
-  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)">
+  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);margin-top:2px">
     <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>${lang}
   </span>`;
 }
@@ -251,8 +252,11 @@ async function renderMain() {
         <span>GitHub</span>
         <button class="icon-btn" id="update-btn" title="Check for updates" style="display:none;margin-left:4px">${icon('download')}</button>
       </div>
-      <div class="actions">
-        <span style="color:var(--accent);font-weight:600;font-size:12px;margin-right:6px">@${state.user}</span>
+      <div class="actions" id="header-actions">
+        ${state.user ? `
+        <span style="color:var(--accent);font-weight:600;font-size:12px;margin-right:6px">${state.user}</span>
+        <img src="https://github.com/${state.user}.png?size=24" style="width:24px;height:24px;border-radius:50%;cursor:pointer">
+        ` : ''}
         <button class="icon-btn" id="settings-btn" title="Settings">${icon('settings')}</button>
         <button class="icon-btn" id="about-btn" title="About">${icon('info')}</button>
         <button class="icon-btn" id="refresh-btn" title="Refresh">${icon('refresh')}</button>
@@ -405,7 +409,7 @@ async function showAbout() {
     <div class="modal-body" style="text-align:center;padding:24px">
       <img src="${githubLogo}" alt="GitHub" style="width:80px;height:80px;margin-bottom:12px;opacity:0.9">
       <h2 style="margin-bottom:4px">GitDesktop</h2>
-      <p style="color:var(--muted);font-size:12px;margin-bottom:20px">v${ver} &mdash; Git repository manager for Linux</p>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:20px">v${ver} &mdash; Git repository manager</p>
 
       <div style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Developer</div>
@@ -794,7 +798,7 @@ function renderFileTree(nodes, depth = 0) {
   return nodes.map(n => {
     if (n.is_dir) {
       return `<div class="ft-item ft-dir" data-dir="true" data-path="${n.path}" style="padding-left:${depth * 16 + 8}px">
-        <span class="ft-arrow">&#9656;</span>
+        <span class="ft-arrow" style="font-size:14px">&#9656;</span>
         <span style="color:var(--accent)">${icon('folder')}</span>
         <span>${n.name}</span>
         <div class="ft-children hidden">${renderFileTree(n.children, depth + 1)}</div>
@@ -804,7 +808,7 @@ function renderFileTree(nodes, depth = 0) {
     const extColors = { js: '#f1e05a', ts: '#3178c6', go: '#00ADD8', py: '#3572A5', rs: '#dea584', rb: '#701516', java: '#b07219', html: '#e34c26', css: '#563d7c', json: '#40d47e', md: '#ffffff', sh: '#89e051', yml: '#cb171e', yaml: '#cb171e', toml: '#9c4221' };
     const color = extColors[ext] || 'var(--muted)';
     return `<div class="ft-item ft-file" data-dir="false" data-path="${n.path}" style="padding-left:${depth * 16 + 24}px">
-      <span style="width:14px;height:14px;border-radius:2px;background:${color};opacity:0.6;flex-shrink:0"></span>
+      <span style="color:${color};flex-shrink:0">${icon('file')}</span>
       <span>${n.name}</span>
     </div>`;
   }).join('');
