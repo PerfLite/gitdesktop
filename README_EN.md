@@ -2,6 +2,19 @@
 
 A lightweight cross-platform desktop client for GitHub (Windows/Linux), built with [Wails](https://wails.io/) (Go backend + a plain JavaScript web frontend). The goal is a simple local UI for everyday GitHub and git work without dropping to the terminal.
 
+## Screenshots
+
+<details>
+<summary>View Application Screenshots</summary>
+
+![GitDesktop](screenshots/gitdesktop_1.png)
+![GitDesktop](screenshots/gitdesktop_2.png)
+![GitDesktop](screenshots/gitdesktop_3.png)
+![GitDesktop](screenshots/gitdesktop_4.png)
+![GitDesktop](screenshots/gitdesktop_5.png)
+
+</details>
+
 ## Features
 
 - Browse and manage your GitHub repositories (via OAuth device flow).

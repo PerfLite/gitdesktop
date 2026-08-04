@@ -2,6 +2,19 @@
 
 Лёгкий кроссплатформенный десктоп-клиент для GitHub (Windows/Linux), написанный с помощью [Wails](https://wails.io/) (Go-бэкенд + веб-фронтенд на чистом JavaScript). Цель проекта — дать простой локальный интерфейс для повседневной работы с репозиториями GitHub и git без необходимости лезть в консоль.
 
+## Скриншоты
+
+<details>
+<summary>Посмотреть скриншоты приложения</summary>
+
+![GitDesktop](screenshots/gitdesktop_1.png)
+![GitDesktop](screenshots/gitdesktop_2.png)
+![GitDesktop](screenshots/gitdesktop_3.png)
+![GitDesktop](screenshots/gitdesktop_4.png)
+![GitDesktop](screenshots/gitdesktop_5.png)
+
+</details>
+
 ## Возможности
 
 - Просмотр и управление репозиториями GitHub (через OAuth device flow).
